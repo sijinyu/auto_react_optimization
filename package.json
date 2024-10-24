@@ -1,6 +1,6 @@
 {
   "name": "auto_react_optimization",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "React 코드베이스를 분석하여 성능 최적화를 제안하는 도구",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
