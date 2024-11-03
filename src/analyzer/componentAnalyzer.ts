@@ -1,37 +1,47 @@
-import { NodePath } from '@babel/traverse';
-import * as t from '@babel/types';
-import type { ComponentAnalysis, AnalyzerConfig, HookInfo } from '../types';
-import { analyzeRenderingBehavior } from './renderAnalysis';
-import { calculateComplexity } from './metrics';
-import { analyzeProps, getComponentName } from '../utils';
+import { NodePath } from "@babel/traverse";
+import { ComponentAnalysis, AnalyzerConfig } from "../types";
+import { analyzeProps } from "../utils/analyzerUtils";
+import { calculateComplexity } from "./metrics";
+import { analyzeRenderingBehavior } from "./renderAnalysis";
+import { getComponentName } from "../utils";
+import { isHook } from "../utils/astUtils";
+import * as t from "@babel/types";
+import { analyzeHooks } from "./hooks";
 
 export function analyzeComponent(
   path: NodePath,
   filePath: string,
   config: AnalyzerConfig
 ): ComponentAnalysis {
-  return {
-    name: getComponentName(path),
+  const name = getComponentName(path);
+  const analysis: ComponentAnalysis = {
+    name,
     filePath,
     props: analyzeProps(path),
     hooks: analyzeHooks(path),
     complexity: calculateComplexity(path),
     renderAnalysis: analyzeRenderingBehavior(path, config),
     dependencies: analyzeDependencies(path),
-    suggestions: [],
+    suggestions: [], // 최적화 엔진에서 나중에 채워짐
   };
+
+  validateAnalysis(analysis);
+  return analysis;
 }
 
 function analyzeDependencies(path: NodePath): string[] {
   const dependencies = new Set<string>();
 
   path.traverse({
-    ImportDeclaration(importPath) {
-      dependencies.add(importPath.node.source.value);
+    ImportDeclaration(importPath: NodePath<t.ImportDeclaration>) {
+      const source = importPath.node.source.value;
+      if (!source.startsWith(".") && !source.startsWith("/")) {
+        dependencies.add(source);
+      }
     },
-    CallExpression(callPath) {
+    CallExpression(callPath: NodePath<t.CallExpression>) {
       if (isHook(callPath)) {
-        dependencies.add('react');
+        dependencies.add("react");
       }
     },
   });
@@ -39,70 +49,14 @@ function analyzeDependencies(path: NodePath): string[] {
   return Array.from(dependencies);
 }
 
-function isHook(path: NodePath<t.CallExpression>): boolean {
-  const callee = path.node.callee;
-  return t.isIdentifier(callee) && callee.name.startsWith('use');
-}
-
-function analyzeHooks(path: NodePath): HookInfo[] {
-  const hooks: HookInfo[] = [];
-
-  path.traverse({
-    CallExpression(callPath) {
-      const callee = callPath.node.callee;
-      if (t.isIdentifier(callee) && callee.name.startsWith('use')) {
-        hooks.push({
-          name: callee.name,
-          type: callee.name as any,
-          dependencies: extractHookDependencies(callPath),
-          complexity: calculateHookComplexity(callPath),
-        });
-      }
-    },
-  });
-
-  return hooks;
-}
-
-function extractHookDependencies(path: NodePath<t.CallExpression>): string[] {
-  const dependencies: string[] = [];
-  const depsArg = path.node.arguments[1];
-
-  if (t.isArrayExpression(depsArg)) {
-    depsArg.elements.forEach((element) => {
-      if (t.isIdentifier(element)) {
-        dependencies.push(element.name);
-      }
-    });
+function validateAnalysis(analysis: ComponentAnalysis): void {
+  if (!analysis.name) {
+    throw new Error("Component analysis must have a name");
   }
-
-  return dependencies;
-}
-
-function calculateHookComplexity(path: NodePath<t.CallExpression>): number {
-  let complexity = 1;
-
-  // 훅의 콜백 함수 내부 복잡도 분석
-  const callback = path.node.arguments[0];
-  if (t.isFunction(callback)) {
-    path.traverse({
-      IfStatement() {
-        complexity++;
-      },
-      ForStatement() {
-        complexity++;
-      },
-      WhileStatement() {
-        complexity++;
-      },
-      DoWhileStatement() {
-        complexity++;
-      },
-      ConditionalExpression() {
-        complexity++;
-      },
-    });
+  if (!analysis.props) {
+    throw new Error("Component analysis must include props analysis");
   }
-
-  return complexity;
+  if (!analysis.hooks) {
+    throw new Error("Component analysis must include hooks analysis");
+  }
 }

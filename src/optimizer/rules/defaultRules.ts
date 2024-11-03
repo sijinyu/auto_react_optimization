@@ -1,97 +1,181 @@
-import type { OptimizationRule, ComponentAnalysis } from '../../types';
-import {
-  generateCallbackExample,
-  getFunctionDetails,
-  getMemoizedComponentDetails,
-  hasChildComponents,
-  hasEventHandlers,
-  hasFunctionPropPassing,
-  hasFunctionProps,
-  hasReactMemoComponents,
-} from '../../utils';
+import { OptimizationRule, ComponentAnalysis } from '../../types';
+import { HOOK_TYPES } from '../../utils/astUtils';
 
 export const defaultRules: OptimizationRule[] = [
+  // 1. useMemo 사용 제안 규칙
   {
     name: 'useMemoForExpensiveCalculations',
     description: 'Suggest using useMemo for expensive calculations',
-    priority: 5,
-    test: (analysis: ComponentAnalysis) => {
+    priority: 8,
+    test: (analysis: ComponentAnalysis): boolean => {
       return (
-        analysis.complexity.cyclomaticComplexity > 10 ||
+        analysis.complexity.cyclomaticComplexity > 5 ||
         analysis.renderAnalysis.hasExpensiveCalculations ||
         analysis.renderAnalysis.hasExpensiveOperations
       );
     },
-    suggestion: (analysis: ComponentAnalysis) => {
-      const improvementEstimate = analysis.complexity.cyclomaticComplexity * 5; // 예상 성능 향상도 계산
-
+    suggestion: (analysis: ComponentAnalysis): string => {
+      const complexity = analysis.complexity.cyclomaticComplexity;
       return `
-Consider using useMemo for expensive calculations in ${analysis.name}.
-This could improve performance by avoiding unnecessary recalculations.
-Estimated performance improvement: ${improvementEstimate}%
+Component "${analysis.name}" contains expensive calculations that could benefit from memoization.
+- Cyclomatic Complexity: ${complexity}
+- Has Expensive Operations: ${analysis.renderAnalysis.hasExpensiveOperations}
 
-Example:
+Consider using useMemo to avoid unnecessary recalculations:
+
+\`\`\`typescript
 const memoizedValue = useMemo(() => {
-  // Your expensive calculation
+  // Move your expensive calculation here
   return expensiveOperation(dependencies);
-}, [dependencies]);`;
+}, [/* Add your dependencies here */]);
+\`\`\`
+      `;
     },
   },
+
+  // 2. useCallback 사용 제안 규칙
   {
     name: 'useCallbackForEventHandlers',
-    description: 'Suggest using useCallback for event handlers and callbacks',
-    priority: 4,
-    test: (analysis: ComponentAnalysis) => {
+    description: 'Suggest using useCallback for event handlers',
+    priority: 7,
+    test: (analysis: ComponentAnalysis): boolean => {
       return (
-        hasFunctionProps(analysis) || // 함수형 props가 있는 경우
-        hasEventHandlers(analysis) || // 이벤트 핸들러가 있는 경우
-        hasChildComponents(analysis) // 자식 컴포넌트에 함수를 전달하는 경우
+        analysis.renderAnalysis.hasEventHandlers &&
+        (analysis.renderAnalysis.hasChildComponents ||
+          analysis.props.some((p) => p.type === 'function'))
       );
     },
-    suggestion: (analysis: ComponentAnalysis) => {
-      const functionDetails = getFunctionDetails(analysis);
-
+    suggestion: (analysis: ComponentAnalysis): string => {
+      const handlers = analysis.renderAnalysis.eventHandlers;
       return `
-Consider using useCallback for the following functions in ${analysis.name}:
-${functionDetails.map((detail) => `- ${detail}`).join('\n')}
+Component "${analysis.name}" has event handlers that should be memoized:
+${handlers.map((h) => `- ${h.name}`).join('\n')}
 
-Example:
-const handleEvent = useCallback((params) => {
+Consider using useCallback:
+
+\`\`\`typescript
+const ${handlers[0]?.name || 'handleEvent'} = useCallback((event) => {
   // Your event handling logic
-  ${generateCallbackExample(analysis)}
-}, [/* Add your dependencies here */]);
-
-Benefits:
-- Prevents unnecessary re-renders of child components
-- Maintains referential equality between renders
-- Optimizes performance for event handlers used in lists`;
+}, [/* dependencies */]);
+\`\`\``;
     },
   },
+
+  // 3. React.memo 사용 제안 규칙
   {
-    name: 'useCallbackForMemoizedComponents',
-    description: 'Suggest using useCallback with memoized child components',
-    priority: 4,
-    test: (analysis: ComponentAnalysis) => {
-      return (
-        hasReactMemoComponents(analysis) && // React.memo 사용하는 자식 컴포넌트가 있고
-        hasFunctionPropPassing(analysis) // 그 컴포넌트에 함수를 전달하는 경우
+    name: 'reactMemoForPureComponents',
+    description: 'Suggest using React.memo for pure components',
+    priority: 6,
+    test: (analysis: ComponentAnalysis): boolean => {
+      const hasMinimalStateOrEffects = analysis.hooks.length <= 1;
+      const receivesProps = analysis.props.length > 0;
+      const rerendersFrequently =
+        analysis.renderAnalysis.estimatedRenderCount > 3;
+
+      return hasMinimalStateOrEffects && receivesProps && rerendersFrequently;
+    },
+    suggestion: (analysis: ComponentAnalysis): string => {
+      return `
+Component "${analysis.name}" appears to be a good candidate for React.memo:
+- Receives ${analysis.props.length} prop(s)
+- Estimated render count: ${analysis.renderAnalysis.estimatedRenderCount}
+- Minimal internal state/effects
+
+Consider wrapping your component with React.memo:
+
+\`\`\`typescript
+export default React.memo(${analysis.name});
+\`\`\`
+      `;
+    },
+  },
+
+  // 4. 의존성 배열 최적화 규칙
+  {
+    name: 'optimizeDependencyArrays',
+    description: 'Suggest optimizing dependency arrays',
+    priority: 5,
+    test: (analysis: ComponentAnalysis): boolean => {
+      return analysis.hooks.some(
+        (hook) =>
+          [HOOK_TYPES.EFFECT, HOOK_TYPES.MEMO, HOOK_TYPES.CALLBACK].includes(
+            hook.type as any
+          ) && hook.dependencies.length > 3
       );
     },
-    suggestion: (analysis: ComponentAnalysis) => {
-      const memoizedComponents = getMemoizedComponentDetails(analysis);
+    suggestion: (analysis: ComponentAnalysis): string => {
+      const hooksWithManyDeps = analysis.hooks.filter(
+        (hook) => hook.dependencies.length > 3
+      );
 
       return `
-Your component ${analysis.name} passes functions to memoized components:
-${memoizedComponents.map((comp) => `- ${comp}`).join('\n')}
+Component "${analysis.name}" has hooks with large dependency arrays:
+${hooksWithManyDeps
+  .map((h) => `- ${h.name}: ${h.dependencies.length} dependencies`)
+  .join('\n')}
 
-To fully benefit from React.memo, wrap the callback functions with useCallback:
+Consider:
+1. Breaking down the hook into smaller ones
+2. Using useReducer instead of multiple useState
+3. Moving static values outside the component
 
 Example:
-const handleCallback = useCallback((params) => {
-  // Your callback logic
-}, [/* dependencies */]);
+\`\`\`typescript
+// Before
+useEffect(() => {
+  // Effect with many dependencies
+}, [dep1, dep2, dep3, dep4, dep5]);
 
-<MemoizedChildComponent onAction={handleCallback} />`;
+// After
+const staticValue = useMemo(() => computeStaticValue(), []);
+useEffect(() => {
+  // Effect with fewer dependencies
+}, [staticValue]);
+\`\`\`
+      `;
+    },
+  },
+
+  // 5. 불필요한 상태 업데이트 감지 규칙
+  {
+    name: 'preventUnnecessaryUpdates',
+    description: 'Detect and prevent unnecessary state updates',
+    priority: 7,
+    test: (analysis: ComponentAnalysis): boolean => {
+      return (
+        analysis.renderAnalysis.hasStateUpdates &&
+        analysis.renderAnalysis.estimatedRenderCount > 5
+      );
+    },
+    suggestion: (analysis: ComponentAnalysis): string => {
+      return `
+Component "${analysis.name}" might have unnecessary state updates:
+- High render count: ${analysis.renderAnalysis.estimatedRenderCount}
+- Has state updates inside effects or callbacks
+
+Consider:
+1. Using state updater function to avoid stale closures
+2. Batching multiple state updates
+3. Moving state updates to useEffect when appropriate
+
+Example:
+\`\`\`typescript
+// Before
+const handleClick = () => {
+  setCount(count + 1);
+  setTotal(total + count);
+};
+
+// After
+const handleClick = () => {
+  setCount(prev => {
+    const newCount = prev + 1;
+    setTotal(total => total + newCount);
+    return newCount;
+  });
+};
+\`\`\`
+      `;
     },
   },
 ];

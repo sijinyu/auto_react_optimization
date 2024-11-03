@@ -1,13 +1,13 @@
-import * as t from '@babel/types';
-import { NodePath } from '@babel/traverse';
-import { AnalyzerConfig } from '../types';
+import * as t from "@babel/types";
+import { NodePath } from "@babel/traverse";
+import { AnalyzerConfig } from "../types";
 
 export function isReactHook(path: NodePath): boolean {
   if (path.isCallExpression()) {
     const callee = path.node.callee;
     if (t.isIdentifier(callee)) {
       return (
-        callee.name.startsWith('use') &&
+        callee.name.startsWith("use") &&
         callee.name.length > 3 &&
         callee.name[3] === callee.name[3].toUpperCase()
       );
@@ -26,7 +26,7 @@ export const defaultConfig: AnalyzerConfig = {
     arraySize: 100,
     computationWeight: 0.7,
   },
-  ignorePatterns: ['**/tests/**', '**/*.test.*', '**/stories/**'],
+  ignorePatterns: ["**/tests/**", "**/*.test.*", "**/stories/**"],
   customRules: [],
 };
 
@@ -40,4 +40,9 @@ export function loadConfig(configPath?: string): AnalyzerConfig {
   }
 
   return defaultConfig;
+}
+
+export function isHook(path: NodePath<t.CallExpression>): boolean {
+  const callee = path.node.callee;
+  return t.isIdentifier(callee) && callee.name.startsWith("use");
 }

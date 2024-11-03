@@ -1,77 +1,103 @@
-import { OptimizationEngine } from '../optimizer/optimizationEngine';
-import { ComponentAnalysis } from '../types';
+import { OptimizationEngine } from "../optimizer/optimizationEngine";
+import { ComponentAnalysis, AnalyzerConfig } from "../types";
 
-describe('Optimization Engine', () => {
-  it('should suggest React.memo for pure components', () => {
-    const engine = new OptimizationEngine({
-      memoThreshold: { propsCount: 2, renderCount: 3 },
-      performanceThreshold: {
-        complexity: 5,
-        arraySize: 100,
-        computationWeight: 0.7,
-      },
-      ignorePatterns: [],
-      customRules: [],
-    });
+describe("OptimizationEngine", () => {
+  let engine: OptimizationEngine;
+  const defaultConfig: AnalyzerConfig = {
+    memoThreshold: {
+      propsCount: 2,
+      renderCount: 3,
+    },
+    performanceThreshold: {
+      complexity: 5,
+      arraySize: 100,
+      computationWeight: 0.7,
+    },
+    ignorePatterns: [],
+    customRules: [],
+  };
 
-    const analysis = {
-      name: 'PureComponent',
-      filePath: 'test.tsx',
-      props: [
-        {
-          name: 'name',
-          type: 'string',
-          usageCount: 1,
-          isRequired: true,
-          updates: 0,
-        },
-        {
-          name: 'age',
-          type: 'number',
-          usageCount: 1,
-          isRequired: true,
-          updates: 0,
-        },
-      ],
+  beforeEach(() => {
+    engine = new OptimizationEngine(defaultConfig);
+  });
+
+  test("should suggest useMemo for expensive calculations", () => {
+    const analysis: ComponentAnalysis = {
+      name: "ExpensiveComponent",
+      filePath: "src/components/ExpensiveComponent.tsx",
+      props: [],
       hooks: [],
       complexity: {
-        cyclomaticComplexity: 1,
-        cognitiveComplexity: 1,
-        linesOfCode: 10,
-        dependencies: 0,
+        cyclomaticComplexity: 8,
+        cognitiveComplexity: 6,
+        linesOfCode: 50,
+        dependencies: 2,
       },
       renderAnalysis: {
-        estimatedRenderCount: 1,
+        estimatedRenderCount: 4,
+        hasExpensiveCalculations: true,
+        hasExpensiveOperations: true,
+        affectedByStateChanges: true,
+        eventHandlers: [],
+        hasEventHandlers: false,
+        hasChildComponents: false,
+        memoizedComponents: [],
+        functionPropPassing: false,
+        hasStateUpdates: true,
+      },
+      dependencies: [],
+      suggestions: [],
+    };
+
+    const suggestions = engine.generateSuggestions(analysis);
+
+    // useMemo 제안이 있는지 확인
+    expect(
+      suggestions.some((s) => s.type === "useMemoForExpensiveCalculations")
+    ).toBe(true);
+  });
+
+  test("should suggest useCallback for event handlers", () => {
+    const analysis: ComponentAnalysis = {
+      name: "EventComponent",
+      filePath: "src/components/EventComponent.tsx",
+      props: [],
+      hooks: [],
+      complexity: {
+        cyclomaticComplexity: 3,
+        cognitiveComplexity: 2,
+        linesOfCode: 30,
+        dependencies: 1,
+      },
+      renderAnalysis: {
+        estimatedRenderCount: 5,
         hasExpensiveCalculations: false,
         hasExpensiveOperations: false,
-        affectedByStateChanges: false,
+        affectedByStateChanges: true,
         eventHandlers: [
           {
-            name: 'test',
-            type: 'click',
+            name: "handleClick",
+            type: "click",
             usesProps: true,
             usesState: true,
+            hasCleanup: false,
           },
         ],
         hasEventHandlers: true,
         hasChildComponents: true,
-        memoizedComponents: [
-          {
-            name: '213',
-            isMemoized: false,
-            receivedFunctions: [],
-          },
-        ],
+        memoizedComponents: [],
         functionPropPassing: true,
         hasStateUpdates: true,
       },
       dependencies: [],
       suggestions: [],
-    } as ComponentAnalysis;
+    };
 
     const suggestions = engine.generateSuggestions(analysis);
+
+    // useCallback 제안이 있는지 확인
     expect(
-      suggestions.some((s) => s.type === 'reactMemoForPureComponents')
-    ).toBe(false);
+      suggestions.some((s) => s.type === "useCallbackForEventHandlers")
+    ).toBe(true);
   });
 });

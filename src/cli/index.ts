@@ -1,103 +1,74 @@
-import { Command } from 'commander';
-import { analyzeProject } from '../analyzer';
-import { generateReport } from '../utils/reportGenerator';
-import { OptimizationEngine } from '../optimizer';
-import type { ComponentAnalysis, OptimizationSuggestion } from '../types';
-import { loadConfig } from '../analyzer/utils';
-import * as fs from 'fs';
-import { isReactComponent } from '../utils';
-import path from 'path';
+import { Command } from "commander";
+import { analyzeProject } from "../analyzer";
+import { OptimizationEngine } from "../optimizer";
+import path from "path";
+import chalk from "chalk";
 
 const program = new Command();
 
 program
-  .name('react-optimizer')
-  .description('Analyze React components for optimization opportunities')
-  .version('1.0.0');
-
-program
-  .command('analyze')
-  .description('Analyze React components in a directory')
-  .option('-p, --path <path>', 'specific file or directory path to analyze')
-  .option('-c, --config <path>', 'path to config file')
-  .option(
-    '-o, --output <path>',
-    'output path for report',
-    './optimization-report'
-  )
-  .option(
-    '-f, --format <type>',
-    'report format (json|html|markdown)',
-    'markdown'
-  )
-
-  .option('-v, --verbose', 'verbose output')
+  .name("react-optimizer")
+  .description("Analyze and optimize React components")
+  .version("1.0.2")
+  .option("-p, --path <path>", "path to React components", ".")
+  .option("-c, --config <path>", "path to config file")
+  .option("--verbose", "show detailed output")
   .action(async (options) => {
     try {
-      const config = loadConfig(options.config);
-      const targetPath = options.path || process.cwd();
+      console.log(chalk.blue("🔍 Analyzing React components...\n"));
 
-      let analysisResults: ComponentAnalysis[] = [];
-
-      if (options.verbose) {
-        console.log('Analyzing path:', targetPath);
-      }
-
-      // 파일인지 디렉토리인지 확인
-      const stats = await fs.promises.stat(targetPath);
-
-      if (stats.isFile()) {
-        // 단일 파일 분석
-        if (isReactFile(targetPath)) {
-          const content = await fs.promises.readFile(targetPath, 'utf-8');
-          const fileResults = await analyzeProject(content, config);
-          analysisResults.push(...fileResults);
-        }
-      } else if (stats.isDirectory()) {
-        // 디렉토리 분석
-        analysisResults = await analyzeProject(targetPath, config);
-      }
-
-      // 최적화 제안 생성
-      const optimizer = new OptimizationEngine(config);
-
-      const suggestions: OptimizationSuggestion[] = [];
-
-      for (const analysis of analysisResults) {
-        const componentSuggestions = optimizer.generateSuggestions(analysis);
-        suggestions.push(...componentSuggestions);
-      }
-
-      const reportOptions = {
-        format: options.format,
-        outputPath: `${options.output}.${options.format}`,
-        verbose: options.verbose,
+      const targetPath = path.resolve(process.cwd(), options.path);
+      const config = {
+        memoThreshold: { propsCount: 2, renderCount: 3 },
+        performanceThreshold: {
+          complexity: 5,
+          arraySize: 100,
+          computationWeight: 0.7,
+        },
+        ignorePatterns: [],
+        customRules: [],
       };
 
-      await generateReport(suggestions, reportOptions);
+      const analysisResults = await analyzeProject(targetPath, config);
+      const optimizer = new OptimizationEngine(config);
 
       console.log(
-        `\nAnalysis complete! Report generated at ${reportOptions.outputPath}`
+        chalk.green(`✨ Found ${analysisResults.length} components\n`)
       );
 
-      if (suggestions.length > 0) {
-        console.log(
-          '\nOptimization opportunities found! Check the report for details.'
-        );
-      } else {
-        console.log('\nNo significant optimization opportunities found.');
-      }
+      analysisResults.forEach((analysis) => {
+        const suggestions = optimizer.generateSuggestions(analysis);
+
+        console.log(chalk.yellow(`\n📦 Component: ${analysis.name}`));
+        console.log("  Location:", analysis.filePath);
+
+        if (options.verbose) {
+          console.log("  Stats:");
+          console.log(`  - Hooks: ${analysis.hooks.length}`);
+          console.log(
+            `  - Event Handlers: ${analysis.renderAnalysis.eventHandlers.length}`
+          );
+          console.log(
+            `  - Complexity: ${analysis.complexity.cyclomaticComplexity}`
+          );
+        }
+
+        if (suggestions.length > 0) {
+          console.log(chalk.cyan("\n  Optimization Suggestions:"));
+          suggestions.forEach((suggestion) => {
+            console.log(`\n  🔧 ${suggestion.type}`);
+            console.log("  " + suggestion.description.replace(/\n/g, "\n  "));
+          });
+        } else {
+          console.log(chalk.green("\n  ✅ No optimization needed"));
+        }
+      });
     } catch (error) {
-      console.error('Error during analysis:', error);
+      console.error(chalk.red("\n❌ Error:"), error);
       process.exit(1);
     }
   });
 
-program.parse(process.argv);
-
-function isReactFile(filePath: string): boolean {
-  const ext = path.extname(filePath).toLowerCase();
-  return ['.jsx', '.tsx', '.js', '.ts'].includes(ext);
-}
+program.parse();
 
 export default program;

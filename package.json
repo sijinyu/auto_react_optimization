@@ -1,7 +1,14 @@
 {
-  "name": "auto_react_optimization",
-  "version": "1.0.1",
-  "description": "React 코드베이스를 분석하여 성능 최적화를 제안하는 도구",
+  "name": "eslint-plugin-react-optimization",
+  "version": "0.0.3",
+  "description": "An ESLint plugin for React optimization suggestions like useMemo and useCallback.",
+  "keywords": [
+    "eslint",
+    "react",
+    "optimization",
+    "useMemo",
+    "useCallback"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
@@ -20,13 +27,6 @@
     "type": "git",
     "url": "https://github.com/sijinyu/auto_react_optimization"
   },
-  "keywords": [
-    "react",
-    "optimization",
-    "memo",
-    "useMemo",
-    "useCallback"
-  ],
   "author": "sijinyu <sijinyudev@gmail.com>",
   "license": "MIT",
   "bugs": {
@@ -34,9 +34,6 @@
   },
   "homepage": "https://github.com/sijinyu/auto_react_optimization#readme",
   "dependencies": {
-    "@babel/parser": "^7.22.5",
-    "@babel/traverse": "^7.22.5",
-    "@babel/types": "^7.22.5",
     "commander": "^9.4.1",
     "glob": "^11.0.0"
   },
@@ -44,16 +41,22 @@
     "@babel/cli": "^7.25.6",
     "@babel/core": "^7.25.2",
     "@babel/generator": "^7.25.6",
+    "@babel/parser": "^7.26.2",
     "@babel/preset-env": "^7.25.4",
     "@babel/preset-react": "^7.24.7",
     "@babel/preset-typescript": "^7.24.7",
+    "@babel/template": "^7.25.9",
+    "@babel/traverse": "^7.25.9",
+    "@babel/types": "^7.26.0",
     "@types/babel__traverse": "^7.20.6",
     "@types/glob": "^8.1.0",
     "@types/jest": "^29.5.2",
     "@types/node": "^22.5.5",
     "@types/react": "^18.3.5",
     "@typescript-eslint/eslint-plugin": "^5.59.9",
-    "@typescript-eslint/parser": "^5.59.9",
+    "@typescript-eslint/parser": "^5.62.0",
+    "@typescript-eslint/types": "^8.12.2",
+    "@typescript-eslint/utils": "^8.12.2",
     "eslint": "^8.42.0",
     "jest": "^29.5.0",
     "prettier": "^2.8.8",

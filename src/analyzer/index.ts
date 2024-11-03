@@ -1,66 +1,58 @@
-import * as fs from 'fs';
-import { parse } from '@babel/parser';
-import traverse, { NodePath } from '@babel/traverse';
-import type { AnalyzerConfig, ComponentAnalysis } from '../types';
-import { analyzeComponent } from './componentAnalyzer';
-import { findFiles } from '../utils/fileUtils';
+import { parse } from "@babel/parser";
+import traverse from "@babel/traverse";
+import { AnalyzerConfig, ComponentAnalysis } from "../types";
+import { analyzeComponent } from "./componentAnalyzer";
+import { findFiles, readFileContent } from "../utils/fileUtils";
 
 export async function analyzeProject(
   sourceDir: string,
   config: AnalyzerConfig
 ): Promise<ComponentAnalysis[]> {
-  const results: ComponentAnalysis[] = [];
-
   try {
-    const files = await findFiles(sourceDir, ['.jsx', '.tsx', '.js', '.ts']);
-
-    for (const file of files) {
-      const content = await fs.promises.readFile(file, 'utf-8');
-      const fileResults = await analyzeFile(content, file, config);
-      results.push(...fileResults);
-    }
+    const files = await findFiles(sourceDir, [".jsx", ".tsx", ".js", ".ts"]);
+    const analysisPromises = files.map((file) => analyzeFile(file, config));
+    return (await Promise.all(analysisPromises)).flat();
   } catch (error) {
-    console.error('Error during project analysis:', error);
+    console.error("Error during project analysis:", error);
+    throw new AnalysisError("Project analysis failed", error as Error);
   }
-
-  return results;
 }
 
 async function analyzeFile(
-  content: string,
   filePath: string,
   config: AnalyzerConfig
 ): Promise<ComponentAnalysis[]> {
-  const analyses: ComponentAnalysis[] = [];
-
   try {
+    const content = await readFileContent(filePath);
     const ast = parse(content, {
-      sourceType: 'module',
-      plugins: ['typescript', 'jsx'],
+      sourceType: "module",
+      plugins: ["typescript", "jsx"],
+      errorRecovery: true,
     });
+
+    const analyses: ComponentAnalysis[] = [];
 
     traverse(ast, {
-      FunctionDeclaration(path) {
-        if (isReactComponent(path)) {
-          const analysis = analyzeComponent(path, filePath, config);
-          analyses.push(analysis);
-        }
-      },
-      ArrowFunctionExpression(path) {
-        if (isReactComponent(path)) {
-          const analysis = analyzeComponent(path, filePath, config);
-          analyses.push(analysis);
+      "FunctionDeclaration|ArrowFunctionExpression|FunctionExpression"(path) {
+        try {
+          if (isReactComponent(path)) {
+            const analysis = analyzeComponent(path, filePath, config);
+            analyses.push(analysis);
+          }
+        } catch (error) {
+          console.warn(`Failed to analyze component in ${filePath}:`, error);
         }
       },
     });
+
+    return analyses;
   } catch (error) {
     console.error(`Error analyzing file ${filePath}:`, error);
+    return [];
   }
-
-  return analyses;
 }
 
-function isReactComponent(path: NodePath): boolean {
+function isReactComponent(path: any): boolean {
   let hasJSX = false;
   path.traverse({
     JSXElement() {
@@ -71,4 +63,11 @@ function isReactComponent(path: NodePath): boolean {
     },
   });
   return hasJSX;
+}
+
+class AnalysisError extends Error {
+  constructor(message: string, public readonly originalError?: Error) {
+    super(message);
+    this.name = "AnalysisError";
+  }
 }
