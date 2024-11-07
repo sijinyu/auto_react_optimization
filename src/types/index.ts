@@ -52,6 +52,8 @@ export interface HookInfo {
   type: HookType;
   dependencies: string[]; // 의존성 배열
   complexity: number; // hook 복잡도
+  wrappedFunction?: string;  // useCallback이 감싸고 있는 함수 이름
+
 }
 
 export type HookType =

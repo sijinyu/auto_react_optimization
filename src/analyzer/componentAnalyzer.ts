@@ -1,19 +1,25 @@
 import { NodePath } from "@babel/traverse";
-import { ComponentAnalysis, AnalyzerConfig } from "../types";
+import * as t from "@babel/types";
+import { AnalyzerConfig, ComponentAnalysis } from "../types";
+import { getComponentName } from "../utils";
 import { analyzeProps } from "../utils/analyzerUtils";
+import { isHook } from "../utils/astUtils";
+import { analyzeHooks } from "./hooks";
 import { calculateComplexity } from "./metrics";
 import { analyzeRenderingBehavior } from "./renderAnalysis";
-import { getComponentName } from "../utils";
-import { isHook } from "../utils/astUtils";
-import * as t from "@babel/types";
-import { analyzeHooks } from "./hooks";
 
 export function analyzeComponent(
   path: NodePath,
   filePath: string,
   config: AnalyzerConfig
 ): ComponentAnalysis {
+    // React 컴포넌트인지 확인
   const name = getComponentName(path);
+
+  if (!name) {
+    throw new Error('Not a valid React component');
+  }
+
   const analysis: ComponentAnalysis = {
     name,
     filePath,
@@ -24,7 +30,6 @@ export function analyzeComponent(
     dependencies: analyzeDependencies(path),
     suggestions: [], // 최적화 엔진에서 나중에 채워짐
   };
-
   validateAnalysis(analysis);
   return analysis;
 }

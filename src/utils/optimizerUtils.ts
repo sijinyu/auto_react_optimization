@@ -1,6 +1,6 @@
 // src/utils/optimizerUtils.ts
-import * as t from "@babel/types";
 import { NodePath } from "@babel/traverse";
+import * as t from "@babel/types";
 import {
   ComponentAnalysis,
   Impact,
@@ -20,6 +20,54 @@ export function calculateImpact(
     bundleSizeImpact: estimateBundleSizeImpact(rule),
   };
 }
+
+export function calculateArrayOperationComplexity(path: NodePath<t.CallExpression>): number {
+  let complexity = 0;
+  
+  // 메서드 체인의 전체 복잡도 계산
+  let currentPath: NodePath<t.CallExpression> = path;
+  while (currentPath) {
+    const node = currentPath.node;
+    if (t.isMemberExpression(node.callee)) {
+      const property = node.callee.property;
+      if (t.isIdentifier(property) && ['map', 'filter', 'reduce'].includes(property.name)) {
+        complexity += 1;
+        
+        // 콜백 함수의 복잡도 계산
+        const [callback] = node.arguments;
+        if (t.isArrowFunctionExpression(callback) || t.isFunctionExpression(callback)) {
+          if (t.isObjectExpression(callback.body)) {
+            complexity += 1;
+          }
+          
+          // 콜백 내부의 연산 복잡도 계산
+          currentPath.traverse({
+            IfStatement() { complexity += 1; },
+            ConditionalExpression() { complexity += 1; },
+            BinaryExpression() { complexity += 0.5; },
+            CallExpression() { complexity += 0.5; }
+          });
+        }
+      }
+    }
+    
+    // 체인의 이전 호출로 이동
+    const callee = currentPath.get('callee');
+    if (callee.isMemberExpression()) {
+      const object = callee.get('object');
+      if (!Array.isArray(object) && object.type === 'CallExpression') {
+        currentPath = object as NodePath<t.CallExpression>;
+      } else {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+ 
+  return complexity;
+ }
+
 
 function estimateRenderTimeImprovement(analysis: ComponentAnalysis): number {
   const { complexity, renderAnalysis } = analysis;

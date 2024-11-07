@@ -1,12 +1,12 @@
 import {
   AnalyzerConfig,
   ComponentAnalysis,
-  OptimizationSuggestion,
   Impact,
   OptimizationRule,
+  OptimizationSuggestion,
 } from "../types";
-import { defaultRules } from "./rules/defaultRules";
 import { generateASTHash } from "../utils/astUtils";
+import { defaultRules } from "./rules/defaultRules";
 
 export class OptimizationEngine {
   private processedComponents: Set<string> = new Set();
@@ -28,7 +28,6 @@ export class OptimizationEngine {
 
     try {
       const suggestions = this.analyzeSuggestions(analysis);
-
       // 캐시 업데이트
       this.processedComponents.add(componentHash);
       this.suggestionCache.set(componentHash, suggestions);
@@ -47,13 +46,11 @@ export class OptimizationEngine {
     analysis: ComponentAnalysis
   ): OptimizationSuggestion[] {
     const suggestions: OptimizationSuggestion[] = [];
-
     for (const rule of this.rules) {
       try {
-        if (this.shouldSkipRule(rule, analysis)) continue;
-
+        if (this.shouldSkipRule(analysis)) continue;
         if (rule.test(analysis)) {
-          const impact = this.calculateImpact(rule, analysis);
+          const impact = this.calculateImpact(analysis);
           suggestions.push({
             type: rule.name,
             description: rule.suggestion(analysis),
@@ -71,13 +68,9 @@ export class OptimizationEngine {
   }
 
   private shouldSkipRule(
-    rule: OptimizationRule,
     analysis: ComponentAnalysis
   ): boolean {
-    // 이미 적용된 최적화는 건너뛰기
-    if (this.isOptimizationAlreadyApplied(rule, analysis)) {
-      return true;
-    }
+    
 
     // 설정에서 무시하도록 지정된 패턴 체크
     const ignorePatterns = this.config.ignorePatterns || [];
@@ -86,38 +79,8 @@ export class OptimizationEngine {
     );
   }
 
-  private isOptimizationAlreadyApplied(
-    rule: OptimizationRule,
-    analysis: ComponentAnalysis
-  ): boolean {
-    switch (rule.name) {
-      case "useMemoForExpensiveCalculations":
-        return this.hasMemoization(analysis);
-      case "useCallbackForEventHandlers":
-        return this.hasCallbackOptimization(analysis);
-      case "reactMemoForPureComponents":
-        return this.isMemoized(analysis);
-      default:
-        return false;
-    }
-  }
-
-  private hasMemoization(analysis: ComponentAnalysis): boolean {
-    return analysis.hooks.some((hook) => hook.type === "useMemo");
-  }
-
-  private hasCallbackOptimization(analysis: ComponentAnalysis): boolean {
-    return analysis.hooks.some((hook) => hook.type === "useCallback");
-  }
-
-  private isMemoized(analysis: ComponentAnalysis): boolean {
-    return analysis.renderAnalysis.memoizedComponents.some(
-      (comp) => comp.name === analysis.name
-    );
-  }
 
   private calculateImpact(
-    rule: OptimizationRule,
     analysis: ComponentAnalysis
   ): Impact {
     const baseImpact = {

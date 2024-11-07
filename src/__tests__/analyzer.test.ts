@@ -1,6 +1,6 @@
-import { analyzeComponent } from "../analyzer/componentAnalyzer";
 import { parse } from "@babel/parser";
 import traverse from "@babel/traverse";
+import { analyzeComponent } from "../analyzer/componentAnalyzer";
 import { AnalyzerConfig } from "../types";
 
 describe("Component Analyzer", () => {
@@ -46,7 +46,7 @@ describe("Component Analyzer", () => {
 
   test("should analyze a component with event handlers", () => {
     const code = `
-      function EventComponent({ onSubmit }) {
+      function EventComponent() {
         const handleClick = () => {
           console.log('clicked');
         };

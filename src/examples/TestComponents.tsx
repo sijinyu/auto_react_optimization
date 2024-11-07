@@ -1,17 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
 // 1. 비용이 큰 계산이 있는 컴포넌트
 export function ExpensiveListComponent() {
   const [filter, setFilter] = useState('');
 
-  const items = new Array(1000).fill(0).map((_, i) => ({
+  const items =  new Array(1010).fill(0).map((_, i) => ({
     id: i,
     name: `Item ${i}`,
-  }));
-
-  const filteredItems = items.filter((item) =>
-    item.name.toLowerCase().includes(filter.toLowerCase())
-  );
+  }))
 
   return (
     <div>
@@ -22,58 +18,12 @@ export function ExpensiveListComponent() {
         placeholder='Filter items...'
       />
       <ul>
-        {filteredItems.map((item) => (
-          <li key={item.id}>{item.name}</li>
-        ))}
+        
       </ul>
     </div>
   );
 }
 
-export function NomalComponent() {
-  const [count, useCount] = useState(0);
-
-  const heavyArray = Array(100000).fill(0);
-  const 증가 = () => useCount((prev) => prev + 1);
-  const 감소 = () => useCount((prev) => prev - 1);
-  const 몰라 = () => useCount((prev) => prev - 1);
-  const 히히 = () => useCount((prev) => prev - 1);
-
-  return (
-    <div>
-      <div>
-        {heavyArray.map(() => (
-          <p>s</p>
-        ))}
-      </div>
-      <div>{count}</div>
-      <ChildComponent
-        handleClick={증가}
-        handleC={감소}
-        handleD={감소}
-        handleE={감소}
-        handleA={몰라}
-        handleB={히히}
-      />
-    </div>
-  );
-}
-function ChildComponent({
-  handleClick,
-  handleC,
-  handleA,
-  handleB,
-}: {
-  handleClick: () => void;
-  handleC: () => void;
-  handleA: () => void;
-  handleB: () => void;
-  handleD: () => void;
-  handleE: () => void;
-}) {
-  console.log(handleC, handleA, handleB);
-  return <button onClick={handleClick}>증가</button>;
-}
 // 2. 이벤트 핸들러가 많은 컴포넌트
 export function EventHandlerComponent({
   onSubmit,
@@ -82,18 +32,20 @@ export function EventHandlerComponent({
 }) {
   const [formData, setFormData] = useState({ name: '', email: '' });
 
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData((prev) => ({ ...prev, name: e.target.value }));
-  };
-
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData((prev) => ({ ...prev, email: e.target.value }));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     onSubmit(formData);
-  };
+  },[]);
+  
+  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData((prev) => ({ ...prev, name: e.target.value }));
+  },[]);
+
+  const handleEmailChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData((prev) => ({ ...prev, email: e.target.value }));
+  },[]);
+
+  
 
   return (
     <form onSubmit={handleSubmit}>
@@ -137,7 +89,7 @@ export function ComplexHookComponent() {
     fetchData();
   }, []);
 
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     setLoading(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -147,7 +99,7 @@ export function ComplexHookComponent() {
     } finally {
       setLoading(false);
     }
-  };
+  },[]);
 
   if (loading) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;

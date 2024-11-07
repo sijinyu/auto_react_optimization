@@ -1,0 +1,10 @@
+src/
+__tests__/
+examples/
+.git/
+.gitignore
+.babelrc
+jest.config.js
+tsconfig.json
+*.test.ts
+README.md

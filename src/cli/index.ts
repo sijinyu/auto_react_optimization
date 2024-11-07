@@ -1,13 +1,13 @@
+import chalk from "chalk";
 import { Command } from "commander";
+import path from "path";
 import { analyzeProject } from "../analyzer";
 import { OptimizationEngine } from "../optimizer";
-import path from "path";
-import chalk from "chalk";
 
 const program = new Command();
 
 program
-  .name("react-optimizer")
+  .name("react-hook-optimizer")
   .description("Analyze and optimize React components")
   .version("1.0.2")
   .option("-p, --path <path>", "path to React components", ".")

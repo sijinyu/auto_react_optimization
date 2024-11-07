@@ -1,5 +1,5 @@
-import * as t from "@babel/types";
 import { NodePath } from "@babel/traverse";
+import * as t from "@babel/types";
 import { AnalyzerConfig } from "../types";
 
 export function isReactHook(path: NodePath): boolean {

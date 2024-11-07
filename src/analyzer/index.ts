@@ -1,8 +1,9 @@
 import { parse } from "@babel/parser";
 import traverse from "@babel/traverse";
 import { AnalyzerConfig, ComponentAnalysis } from "../types";
-import { analyzeComponent } from "./componentAnalyzer";
+import { isReactComponent } from "../utils";
 import { findFiles, readFileContent } from "../utils/fileUtils";
+import { analyzeComponent } from "./componentAnalyzer";
 
 export async function analyzeProject(
   sourceDir: string,
@@ -36,8 +37,13 @@ async function analyzeFile(
       "FunctionDeclaration|ArrowFunctionExpression|FunctionExpression"(path) {
         try {
           if (isReactComponent(path)) {
-            const analysis = analyzeComponent(path, filePath, config);
-            analyses.push(analysis);
+            const isTopLevel = path.scope.parent === null;
+          
+            // 컴포넌트가 아닌 경우 분석하지 않음
+            if (!isTopLevel) {
+              const analysis = analyzeComponent(path, filePath, config);
+              analyses.push(analysis);
+            } 
           }
         } catch (error) {
           console.warn(`Failed to analyze component in ${filePath}:`, error);
@@ -52,18 +58,6 @@ async function analyzeFile(
   }
 }
 
-function isReactComponent(path: any): boolean {
-  let hasJSX = false;
-  path.traverse({
-    JSXElement() {
-      hasJSX = true;
-    },
-    JSXFragment() {
-      hasJSX = true;
-    },
-  });
-  return hasJSX;
-}
 
 class AnalysisError extends Error {
   constructor(message: string, public readonly originalError?: Error) {

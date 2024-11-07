@@ -1,16 +1,16 @@
 import { NodePath } from "@babel/traverse";
 import * as t from "@babel/types";
 import { HookInfo, HookType } from "../types";
-import { isHook, getHookDependencies, HOOK_TYPES } from "../utils/astUtils";
+import { getHookDependencies, HOOK_TYPES, isHook } from "../utils/astUtils";
 
 export function analyzeHooks(path: NodePath): HookInfo[] {
   const hooks: Set<HookInfo> = new Set();
   const analyzedHooks = new Set<string>();
 
+
   path.traverse({
     CallExpression(callPath) {
       if (!isHook(callPath)) return;
-
       const node = callPath.node;
       const hookName = (node.callee as t.Identifier).name;
 
@@ -19,13 +19,23 @@ export function analyzeHooks(path: NodePath): HookInfo[] {
       if (analyzedHooks.has(hookSignature)) return;
       analyzedHooks.add(hookSignature);
 
+      // useCallback인 경우 감싸고 있는 함수 이름 찾기
+      let wrappedFunction;
+      if (hookName === 'useCallback') {
+        const parent = callPath.findParent((p)=> t.isVariableDeclarator(p.node))
+        if (parent?.isVariableDeclarator() && t.isIdentifier(parent.node.id)) {
+          wrappedFunction = parent.node.id.name;
+        }
+      }
+
       hooks.add({
         name: hookName,
         type: determineHookType(hookName),
         dependencies: getHookDependencies(callPath),
         complexity: calculateHookComplexity(callPath),
+        wrappedFunction
       });
-    },
+    }
   });
 
   return Array.from(hooks);

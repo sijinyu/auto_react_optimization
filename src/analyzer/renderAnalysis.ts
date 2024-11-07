@@ -2,18 +2,20 @@ import { NodePath } from "@babel/traverse";
 import * as t from "@babel/types";
 import {
   AnalyzerConfig,
-  RenderAnalysis,
-  EventHandler,
   ChildComponent,
+  EventHandler,
+  RenderAnalysis,
 } from "../types";
-import { isHook, isSpecificHook, HOOK_TYPES } from "../utils/astUtils";
+import { HOOK_TYPES, isHook, isSpecificHook } from "../utils/astUtils";
 import { isStateUpdate } from "./hooks";
+
 
 export function analyzeRenderingBehavior(
   path: NodePath,
   config: AnalyzerConfig
 ): RenderAnalysis {
   let hasChildComponents = false;
+  let hasPropsPassingToChild = false;
 
   path.traverse({
     JSXElement(jsxPath) {
@@ -26,6 +28,23 @@ export function analyzeRenderingBehavior(
         elementName.name[0] === elementName.name[0].toUpperCase()
       ) {
         hasChildComponents = true;
+
+        openingElement.attributes.forEach(attr => {
+          if (t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name)) {
+            const attrName = attr.name.name; // name 프로퍼티의 실제 문자열 값
+            const value = attr.value;
+            
+            if (t.isJSXExpressionContainer(value)) {
+              const expression = value.expression;
+              if (t.isFunction(expression) || 
+                  (t.isIdentifier(expression) && 
+                   (attrName.startsWith('handle') || 
+                    attrName.startsWith('on')))) {
+                hasPropsPassingToChild = true;
+              }
+            }
+          }
+        });
       }
     },
   });
@@ -37,7 +56,7 @@ export function analyzeRenderingBehavior(
     affectedByStateChanges: checkForStateChanges(path),
     eventHandlers: findEventHandlers(path),
     hasEventHandlers: false,
-    hasChildComponents,
+    hasChildComponents: hasChildComponents && hasPropsPassingToChild,
     memoizedComponents: findMemoizedComponents(path),
     functionPropPassing: false,
     hasStateUpdates: false,
@@ -45,7 +64,7 @@ export function analyzeRenderingBehavior(
 
   // 부가 정보 설정
   analysis.hasEventHandlers = analysis.eventHandlers.length > 0;
-  analysis.functionPropPassing = checkForFunctionPropPassing(path);
+analysis.functionPropPassing = checkForFunctionPropPassing(path);
   analysis.hasStateUpdates = checkForStateUpdates(path);
 
   return analysis;
@@ -101,44 +120,318 @@ function checkForExpensiveOperations(
   const arrayThreshold = config.performanceThreshold.arraySize;
 
   path.traverse({
-    CallExpression(callPath) {
-      const node = callPath.node;
-      if (t.isMemberExpression(node.callee)) {
-        const property = node.callee.property;
-        if (t.isIdentifier(property)) {
-          const methodName = property.name;
-          if (["map", "filter", "reduce"].includes(methodName)) {
-            const arraySize = estimateArraySize(callPath);
-            if (arraySize > arrayThreshold) {
+    // 1. 변수 선언 체크
+    VariableDeclarator(declaratorPath) {
+      const init = declaratorPath.get('init');
+      if (!init) return;
+
+      if (checkForArrayOperations(init as NodePath)) {
+        if (!isMemoized(declaratorPath)) {
+          found = true;
+        }
+      }
+    },
+
+    // 2. 함수 표현식 및 화살표 함수 반환 값 체크
+    ArrowFunctionExpression(arrowPath) {
+      const body = arrowPath.get('body');
+
+      if (checkForArrayOperations(body)) {
+        if (!isMemoized(arrowPath)) {
+          found = true;
+        }
+      }
+    },
+
+    // 3. 일반 함수 선언에서 내부의 배열 생성 여부 탐지
+    FunctionDeclaration(funcPath) {
+      funcPath.traverse({
+        CallExpression(callPath) {
+          if (checkForArrayOperations(callPath)) {
+            if (!isMemoized(callPath)) {
               found = true;
             }
           }
-        }
-      }
+        },
+        NewExpression(newPath) {
+          if (checkForArrayOperations(newPath)) {
+            if (!isMemoized(newPath)) {
+              found = true;
+            }
+          }
+        },
+      });
+    },
+
+    // 4. 함수 표현식에서도 배열 생성 및 메서드 사용 체크
+    FunctionExpression(funcExprPath) {
+      funcExprPath.traverse({
+        CallExpression(callPath) {
+          if (checkForArrayOperations(callPath)) {
+            if (!isMemoized(callPath)) {
+              found = true;
+            }
+          }
+        },
+        NewExpression(newPath) {
+          if (checkForArrayOperations(newPath)) {
+            if (!isMemoized(newPath)) {
+              found = true;
+            }
+          }
+        },
+      });
     },
   });
 
   return found;
+
+  // Helper 함수: 배열 연산 여부 체크
+  function checkForArrayOperations(nodePath: NodePath): boolean {
+    if (nodePath.isCallExpression() || nodePath.isNewExpression()) {
+      const calleeNode = nodePath.node.callee;
+
+      // new Array() 패턴 체크
+      if (
+        nodePath.isNewExpression() &&
+        t.isIdentifier(calleeNode, { name: 'Array' })
+      ) {
+        const args = nodePath.get('arguments');
+        if (Array.isArray(args) && args.length > 0) {
+          const firstArg = args[0];
+          if (firstArg.isNumericLiteral()) {
+            const arraySize = firstArg.node.value;
+            if (arraySize > arrayThreshold) {
+              return true;
+            }
+          }
+        }
+      }
+
+      // Array.from() 체크
+      if (
+        nodePath.isCallExpression() &&
+        t.isMemberExpression(calleeNode) &&
+        t.isIdentifier(calleeNode.object, { name: 'Array' }) &&
+        t.isIdentifier(calleeNode.property, { name: 'from' })
+      ) {
+        const args = nodePath.get('arguments');
+        if (Array.isArray(args) && args.length > 0) {
+          const firstArg = args[0];
+          if (firstArg.isNumericLiteral()) {
+            const arraySize = firstArg.node.value;
+            if (arraySize > arrayThreshold) {
+              return true;
+            }
+          }
+        }
+      }
+
+      // 배열 메서드 체인 체크
+      if (
+        t.isMemberExpression(calleeNode) &&
+        isArrayMethod(calleeNode.property as t.Expression)
+      ) {
+        const objectPath = nodePath.get('callee.object');
+        if (Array.isArray(objectPath)) {
+          for (const objPath of objectPath) {
+            if (checkForArrayOperations(objPath)) {
+              return true;
+            }
+          }
+        } else if (checkForArrayOperations(objectPath)) {
+          return true;
+        }
+      }
+    }
+
+    // Arrow Function이 배열 연산을 반환하는 경우
+    if (nodePath.isArrowFunctionExpression()) {
+      const body = nodePath.get('body');
+      if (checkForArrayOperations(body)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // Helper 함수: 노드가 useMemo로 감싸졌는지 확인
+  function isMemoized(nodePath: NodePath | null): boolean {
+    if (!nodePath) return false;
+
+    let currentPath: NodePath | null = nodePath;
+    while (currentPath) {
+      if (currentPath.isCallExpression()) {
+        const callee = currentPath.get('callee');
+        if (callee.isIdentifier({ name: 'useMemo' })) {
+          return true;
+        }
+      }
+      currentPath = currentPath.parentPath;
+    }
+
+    return false;
+  }
+
+  // Helper 함수: 배열 메서드 식별
+  function isArrayMethod(propertyNode: t.Expression): boolean {
+    return (
+      t.isIdentifier(propertyNode) &&
+      ['map', 'filter', 'reduce', 'forEach', 'fill'].includes(
+        propertyNode.name
+      )
+    );
+  }
 }
+// function checkForExpensiveOperations(
+//   path: NodePath,
+//   config: AnalyzerConfig
+// ): boolean {
+//   let found = false;
+//   const arrayThreshold = config.performanceThreshold.arraySize;
+
+//   path.traverse({
+//     // 2. 변수 선언 체크
+//     VariableDeclarator(declaratorPath) {
+//       const init = declaratorPath.get('init');
+//       if (!init || Array.isArray(init)) return;
+
+//       const arraySize = getArraySize(init as NodePath);
+//       if (arraySize > arrayThreshold) {
+//         found = true;
+//       }
+
+//       // 배열에 대해 map, filter 등이 사용되는지 체크
+//       if (t.isCallExpression(init.node)) {
+//         const callee = init.node.callee;
+//         if (isArrayMethod(callee)) {
+//           found = true;
+//         }
+//       }
+//     },
+
+    
+//     // 함수 선언 내부의 배열 연산 체크
+//     ArrowFunctionExpression(arrowPath) {
+//       const body = arrowPath.get('body');
+//       if (!Array.isArray(body)) {
+//         const arraySize = getArraySize(body);
+//         if (arraySize > arrayThreshold) {
+//           found = true;
+//         }
+
+//         // 배열의 map, filter 등이 함수 내부에서 사용되는지 체크
+//         body.traverse({
+//           CallExpression(callPath) {
+//             const callee = callPath.get('callee');
+//             if (callee.isMemberExpression() && isArrayMethod(callee.node)) {
+//               const arraySize = getArraySize(callPath);
+//               if (arraySize > arrayThreshold) {
+//                 found = true;
+//               }
+//             }
+//           },
+//         });
+//       }
+//     },
+//   });
+
+//   return found;
+// }
+
+// function isArrayMethod(callee: t.Node): boolean {
+//   if (t.isMemberExpression(callee)) {
+//     if (
+//       t.isIdentifier(callee.property) &&
+//       ['map', 'filter', 'reduce', 'forEach'].includes(callee.property.name)
+//     ) {
+//       return true;
+//     }
+//   }
+//   return false;
+// }
+
+
+function getArraySize(path: NodePath): number {
+  if (path.isCallExpression()) {
+    const callee = path.node.callee;
+
+    // new Array() 패턴 체크
+    if (t.isNewExpression(callee)) {
+      if (t.isIdentifier(callee.callee) && callee.callee.name === 'Array') {
+        const sizeArg = callee.arguments[0];
+        if (t.isNumericLiteral(sizeArg)) {
+          return sizeArg.value;
+        }
+      }
+    }
+
+    // map, filter 등의 메서드 체인 체크
+    if (t.isMemberExpression(callee)) {
+      const object = callee.object;
+      if (t.isCallExpression(object)) {
+        return getArraySize(path.get('callee.object') as NodePath);
+      }
+    }
+  }
+
+  return 0;
+}
+
 
 function findEventHandlers(path: NodePath): EventHandler[] {
   const handlers: EventHandler[] = [];
-  const processedHandlers = new Set<string>();
-
+  
+  // 모든 변수 선언을 순회
   path.traverse({
-    JSXAttribute(attrPath) {
-      const name = attrPath.node.name;
-      if (!t.isJSXIdentifier(name) || !name.name.startsWith("on")) return;
+    VariableDeclarator(declaratorPath) {
+      // 1. 핸들러 함수 식별
+      
+      const id = declaratorPath.get('id');
+      if (!id.isIdentifier()) return;
+      
+      const handlerName = id.node.name;
+      if (!handlerName.startsWith('handle') && !handlerName.startsWith('on')) return;
 
-      const value = attrPath.node.value;
-      if (!t.isJSXExpressionContainer(value)) return;
+      // 2. 함수 정의 확인
+      const init = declaratorPath.get('init');
+      if (Array.isArray(init)) return;
 
-      const handler = analyzeEventHandler(attrPath, value.expression);
-      if (handler && !processedHandlers.has(handler.name)) {
-        handlers.push(handler);
-        processedHandlers.add(handler.name);
+      // 3. useCallback 확인
+      const parentNode = declaratorPath.parentPath?.parentPath?.node;
+      const isCallbackWrapped = t.isCallExpression(parentNode) && 
+                              t.isIdentifier(parentNode.callee) && 
+                              parentNode.callee.name === 'useCallback';
+      
+      if (!isCallbackWrapped) {
+        // 4. JSX 속성으로 전달되는지 확인
+        let isPassedToJSX = false;
+        path.traverse({
+          JSXAttribute(jsxAttrPath) {
+            if (t.isJSXIdentifier(jsxAttrPath.node.name) &&
+                jsxAttrPath.node.value && 
+                t.isJSXExpressionContainer(jsxAttrPath.node.value) &&
+                t.isIdentifier(jsxAttrPath.node.value.expression) &&
+                jsxAttrPath.node.value.expression.name === handlerName) {
+              isPassedToJSX = true;
+            }
+          }
+        });
+
+        // 5. 핸들러가 JSX props로 전달되면 추가
+        if (isPassedToJSX) {
+          handlers.push({
+            name: handlerName,
+            type: 'custom',
+            usesProps: true,
+            usesState: true,
+            hasCleanup: false
+          });
+        }
       }
-    },
+    }
+    
   });
 
   return handlers;
@@ -187,51 +480,34 @@ function calculateLoopComplexity(path: NodePath): number {
   return complexity * Math.pow(2, nestedLoops);
 }
 
-function estimateArraySize(path: NodePath): number {
-  // 배열 크기 추정 로직 구현
-  // 1. 리터럴 배열의 경우 elements.length
-  // 2. Array 생성자 사용 시 인자 값
-  // 3. 그 외의 경우 보수적으로 추정
-  return 1000; // 기본값
-}
 
-function analyzeEventHandler(
-  path: NodePath<t.JSXAttribute>,
-  expression: t.Expression | t.JSXEmptyExpression
-): EventHandler | null {
-  // JSXEmptyExpression이거나 함수/식별자가 아닌 경우 처리
-  if (
-    t.isJSXEmptyExpression(expression) ||
-    (!t.isIdentifier(expression) && !t.isFunction(expression))
-  ) {
-    return null;
+function estimateArraySize(path: NodePath<t.CallExpression>): number {
+  const node = path.node;
+  
+  if (t.isCallExpression(node)) {
+    // new Array(n) 생성자 체크
+    if (t.isNewExpression(node.callee) && 
+        t.isIdentifier(node.callee.callee) && 
+        node.callee.callee.name === 'Array') {
+      const args = node.callee.arguments;
+      if (args.length > 0 && t.isNumericLiteral(args[0])) {
+        return args[0].value;
+      }
+    }
+
+    // 메서드 체인에서 원본 배열 크기 찾기
+    if (t.isMemberExpression(node.callee)) {
+      const object = node.callee.object;
+      if (t.isCallExpression(object)) {
+        const size = estimateArraySize(path.get('callee.object') as NodePath<t.CallExpression>);
+        if (size > 0) return size;
+      }
+    }
   }
 
-  const name = t.isIdentifier(expression) ? expression.name : "anonymous";
-
-  // JSXNamespacedName 처리 추가
-  const eventName = t.isJSXNamespacedName(path.node.name)
-    ? path.node.name.name.name
-    : path.node.name.name;
-
-  return {
-    name,
-    type: getEventType(eventName),
-    usesProps: checkUsesProps(path),
-    usesState: checkUsesState(path),
-    hasCleanup: checkHasCleanup(path),
-  };
+  return 0;
 }
-
-// getEventType 수정
-function getEventType(name: string): EventHandler["type"] {
-  const loweredName = name.toLowerCase();
-  if (loweredName.includes("click")) return "click";
-  if (loweredName.includes("change")) return "change";
-  if (loweredName.includes("submit")) return "submit";
-  return "custom";
-}
-
+ 
 function checkForStateChanges(path: NodePath): boolean {
   let found = false;
 
@@ -244,103 +520,6 @@ function checkForStateChanges(path: NodePath): boolean {
   });
 
   return found;
-}
-
-// Props 사용 체크
-function checkUsesProps(path: NodePath): boolean {
-  let usesProps = false;
-
-  path.traverse({
-    Identifier(idPath) {
-      if (idPath.node.name === "props") {
-        usesProps = true;
-      }
-      // props 구조 분해 할당 체크
-      const binding = idPath.scope.getBinding(idPath.node.name);
-      if (binding?.path.isObjectPattern()) {
-        const parent = binding.path.parentPath;
-        if (
-          parent?.isVariableDeclarator() &&
-          t.isIdentifier(parent.node.init) &&
-          parent.node.init.name === "props"
-        ) {
-          usesProps = true;
-        }
-      }
-    },
-  });
-
-  return usesProps;
-}
-
-// State 사용 체크
-function checkUsesState(path: NodePath): boolean {
-  let usesState = false;
-
-  path.traverse({
-    CallExpression(callPath) {
-      if (isHook(callPath) && isSpecificHook(callPath, HOOK_TYPES.STATE)) {
-        usesState = true;
-      }
-    },
-    Identifier(idPath) {
-      // setState 패턴 체크
-      if (
-        idPath.node.name.startsWith("set") &&
-        idPath.node.name[3] === idPath.node.name[3].toUpperCase()
-      ) {
-        usesState = true;
-      }
-    },
-  });
-
-  return usesState;
-}
-
-// Cleanup 함수 체크
-function checkHasCleanup(path: NodePath): boolean {
-  let hasCleanup = false;
-
-  path.traverse({
-    // useEffect cleanup 체크
-    ReturnStatement(returnPath) {
-      const functionParent = returnPath.getFunctionParent();
-      if (functionParent && isEffectCallback(functionParent)) {
-        hasCleanup = true;
-      }
-    },
-    // 이벤트 리스너 제거 체크
-    CallExpression(callPath) {
-      const callee = callPath.node.callee;
-      if (t.isMemberExpression(callee)) {
-        const prop = callee.property;
-        if (t.isIdentifier(prop) && prop.name === "removeEventListener") {
-          hasCleanup = true;
-        }
-      }
-    },
-  });
-
-  return hasCleanup;
-}
-
-// Effect 콜백인지 체크
-function isEffectCallback(path: NodePath): boolean {
-  let isEffect = false;
-  let current: NodePath | null = path;
-
-  while (current) {
-    if (current.isCallExpression()) {
-      const callee = current.node.callee;
-      if (t.isIdentifier(callee) && callee.name === HOOK_TYPES.EFFECT) {
-        isEffect = true;
-        break;
-      }
-    }
-    current = current.parentPath;
-  }
-
-  return isEffect;
 }
 
 // React.memo 컴포넌트 분석

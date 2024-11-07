@@ -1,11 +1,11 @@
-import { ESLintUtils, TSESTree, TSESLint } from '@typescript-eslint/utils';
 import { parse } from '@babel/parser';
+import template from '@babel/template';
 import traverse, { NodePath } from '@babel/traverse';
 import * as t from '@babel/types';
-import template from '@babel/template';
-import { defaultRules } from '../optimizer/rules';
+import { ESLintUtils, TSESLint, TSESTree } from '@typescript-eslint/utils';
 import { analyzeComponent } from '../analyzer/componentAnalyzer';
-import { ComponentAnalysis, AnalyzerConfig } from '../types';
+import { defaultRules } from '../optimizer/rules';
+import { AnalyzerConfig, ComponentAnalysis } from '../types';
 
 type MessageIds =
   | 'useMemoSuggestion'
@@ -131,9 +131,7 @@ export const reactHooksOptimization = createRule<[RuleOptions], MessageIds>({
         case 'useMemoForExpensiveCalculations':
           return createUseMemoFix(fixer, node, analysis, sourceCode);
         case 'useCallbackForEventHandlers':
-          return createUseCallbackFix(fixer, node, analysis, sourceCode);
-        case 'reactMemoForPureComponents':
-          return createReactMemoFix(fixer, node, analysis, sourceCode);
+          return createUseCallbackFix(fixer, node,sourceCode)
         default:
           return null;
       }
@@ -162,27 +160,9 @@ export const reactHooksOptimization = createRule<[RuleOptions], MessageIds>({
     function createUseCallbackFix(
       fixer: TSESLint.RuleFixer,
       node: TSESTree.Node,
-      analysis: ComponentAnalysis,
       sourceCode: TSESLint.SourceCode
     ): TSESLint.RuleFix {
       return fixer.replaceText(node, sourceCode.getText(node as any));
-    }
-
-    function createReactMemoFix(
-      fixer: TSESLint.RuleFixer,
-      node: TSESTree.Node,
-      analysis: ComponentAnalysis,
-      sourceCode: TSESLint.SourceCode
-    ): TSESLint.RuleFix {
-      const build = template.expression(`
-        React.memo(COMPONENT)
-      `);
-
-      const newNode = build({
-        COMPONENT: sourceCode.getText(node),
-      });
-
-      return fixer.replaceText(node, sourceCode.getText(newNode as any));
     }
 
     return {
@@ -196,7 +176,7 @@ export const reactHooksOptimization = createRule<[RuleOptions], MessageIds>({
           const nodePath = convertToNodePath(node);
           const analysis = analyzeComponent(
             nodePath,
-            context.getFilename(),
+            context.filename,
             analyzerConfig
           );
 
@@ -235,7 +215,6 @@ function getRuleMessageId(ruleName: string): MessageIds | null {
   const messageIds: Record<string, MessageIds> = {
     useMemoForExpensiveCalculations: 'useMemoSuggestion',
     useCallbackForEventHandlers: 'useCallbackSuggestion',
-    reactMemoForPureComponents: 'memoComponentSuggestion',
     optimizeDependencyArrays: 'optimizeDependencySuggestion',
     preventUnnecessaryUpdates: 'preventUpdatesSuggestion',
   };

@@ -65,26 +65,39 @@ function removeNodeMetadata(node: t.Node): Record<string, any> {
 
 // 2. React 컴포넌트 관련 체크
 export function isReactComponent(path: NodePath): boolean {
-  if (
-    !path.isFunctionDeclaration() &&
-    !path.isArrowFunctionExpression() &&
-    !path.isFunctionExpression()
-  ) {
+  // 함수 선언이나 화살표 함수가 아니면 컴포넌트가 아님
+  if (!path.isFunctionDeclaration() && 
+      !path.isFunctionExpression() && 
+      !path.isArrowFunctionExpression()) {
     return false;
   }
 
+  // 최상위 레벨 체크
+  const isTopLevel = path.findParent(p => p.isProgram());
+  if (!isTopLevel) return false;
+
+  // export 체크
+  const isExported = path.findParent(p => 
+    p.isExportNamedDeclaration() || p.isExportDefaultDeclaration()
+  );
+  if (!isExported) return false;
+
   let hasJSX = false;
+
+  // JSX 사용 여부 확인
   path.traverse({
-    JSXElement() {
-      hasJSX = true;
-    },
-    JSXFragment() {
-      hasJSX = true;
-    },
+    JSXElement() { hasJSX = true; },
+    JSXFragment() { hasJSX = true; },
   });
 
-  return hasJSX;
+  if (!hasJSX) return false;
+
+  // 컴포넌트 이름이 대문자로 시작하는지 확인
+  const componentName = getComponentName(path);
+  if(!componentName) return false
+  return componentName[0] === componentName[0].toUpperCase();
 }
+
 
 // 3. Hook 관련 체크
 export function isHook(
@@ -133,21 +146,31 @@ export function isUseCallbackCall(node: t.CallExpression): boolean {
 }
 
 // 4. 컴포넌트 이름 추출
-export function getComponentName(path: NodePath): string {
+
+export function getComponentName(path: NodePath): string | null {
   if (path.isFunctionDeclaration() && path.node.id) {
     return path.node.id.name;
   }
 
-  if (path.isArrowFunctionExpression() || path.isFunctionExpression()) {
-    const parent = path.parentPath;
-    if (parent.isVariableDeclarator() && t.isIdentifier(parent.node.id)) {
-      return parent.node.id.name;
+  let parentNode = path.parentPath?.node;
+  if (parentNode && 'id' in parentNode && parentNode.id?.type === 'Identifier') {
+    return parentNode.id.name;
+  }
+
+  // export default 케이스 처리
+  const exportDefault = path.findParent(p => p.isExportDefaultDeclaration());
+  if (exportDefault) {
+    const previous = exportDefault.getPrevSibling();
+    if (previous.isVariableDeclaration()) {
+      const declaration = previous.node.declarations[0];
+      if (t.isIdentifier(declaration.id)) {
+        return declaration.id.name;
+      }
     }
   }
 
-  return "AnonymousComponent";
+  return null; // 이름을 알 수 없는 경우 null 반환
 }
-
 // 5. 복잡도 관련
 export function hasNestedLoops(path: NodePath): boolean {
   let loopDepth = 0;
