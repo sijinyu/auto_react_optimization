@@ -1,6 +1,6 @@
-# 🚀 eslint-plugin-react-optimization 🔧
+# 🚀 eslint-plugin-react-hooks-optimization 🔧
 
-`eslint-plugin-react-optimization` is an ESLint plugin that recommends using `useMemo` and `useCallback` to optimize React projects and reduce unnecessary re-renders. This plugin detects performance issues in the codebase and provides specific recommendations and autofixes to help developers achieve optimal performance.
+`eslint-plugin-react-hooks-optimization` is an ESLint plugin that recommends using `useMemo` and `useCallback` to optimize React projects and reduce unnecessary re-renders. This plugin detects performance issues in the codebase and provides specific recommendations and autofixes to help developers achieve optimal performance.
 
 ## ✨ Key Features
 
@@ -13,40 +13,40 @@
 
 ### 🛠️ Setting Up as an ESLint Plugin
 
-You can install `eslint-plugin-react-optimization` to use in your project.
+You can install `eslint-plugin-react-hooks-optimization` to use in your project.
 
 ```bash
-npm install eslint-plugin-react-optimization --save-dev
+npm install eslint-plugin-react-hooks-optimization --save-dev
 ```
 
 Or, if you're using Yarn:
 
 ```bash
-yarn add eslint-plugin-react-optimization --dev
+yarn add eslint-plugin-react-hooks-optimization --dev
 ```
 
 Add the plugin to your ESLint configuration file. Here is an example of how to configure `.eslintrc.json`:
 
 ```json
 {
-  "plugins": ["react-optimization"],
+  "plugins": ["react-hooks-optimization"],
   "rules": {
-    "react-optimization/use-memo": "warn",
-    "react-optimization/use-callback": "warn"
+    "react-hooks-optimization/use-memo": "warn",
+    "react-hooks-optimization/use-callback": "warn"
   }
 }
 ```
 
 ## 🖥️ Running as a CLI Tool
 
-`eslint-plugin-react-optimization` can also be used as a CLI tool. It provides the `react-optimizer` command to analyze project files and offer optimization suggestions.
+`eslint-plugin-react-hooks-optimization` can also be used as a CLI tool. It provides the `react-optimizer` command to analyze project files and offer optimization suggestions.
 
 ### 📥 Installation
 
 To use it as a CLI, install the package globally:
 
 ```bash
-npm install -g eslint-plugin-react-optimization
+npm install -g eslint-plugin-react-hooks-optimization
 ```
 
 ### ▶️ Usage
@@ -78,7 +78,7 @@ Recommends using `useCallback` to prevent event handlers passed to child compone
 
 ## 🔧 Autofix
 
-`eslint-plugin-react-optimization` provides autofixes for the recommended optimizations, making it easier to apply suggestions and improve perforation!
+`eslint-plugin-react-hooks-optimization` provides autofixes for the recommended optimizations, making it easier to apply suggestions and improve perforation!
 
 ## 📜 License
 
