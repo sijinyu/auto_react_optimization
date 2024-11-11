@@ -181,53 +181,53 @@ useEffect(() => {
   },
 
   // 5. 불필요한 상태 업데이트 감지 규칙
-  {
-    name: 'preventUnnecessaryUpdates',
-    description: 'Detect and prevent unnecessary state updates',
-    priority: 7,
-    test: (analysis: ComponentAnalysis): boolean => {
-      const hasAsyncStateUpdates = analysis.hooks.some(
-        hook => hook.type === 'useCallback' && 
-               hook.wrappedFunction && 
-               analysis.renderAnalysis.eventHandlers.some(
-                 handler => handler.name === hook.wrappedFunction
-               )
-      );
-      return (
-        !hasAsyncStateUpdates &&  // 적절히 처리된 비동기 상태 업데이트는 제외
-        analysis.renderAnalysis.hasStateUpdates &&
-        analysis.renderAnalysis.estimatedRenderCount > 5
-      );
-    },
-    suggestion: (analysis: ComponentAnalysis): string => {
-      return `
-Component "${analysis.name}" might have unnecessary state updates:
-- High render count: ${analysis.renderAnalysis.estimatedRenderCount}
-- Has state updates inside effects or callbacks
+//   {
+//     name: 'preventUnnecessaryUpdates',
+//     description: 'Detect and prevent unnecessary state updates',
+//     priority: 7,
+//     test: (analysis: ComponentAnalysis): boolean => {
+//       const hasAsyncStateUpdates = analysis.hooks.some(
+//         hook => hook.type === 'useCallback' && 
+//                hook.wrappedFunction && 
+//                analysis.renderAnalysis.eventHandlers.some(
+//                  handler => handler.name === hook.wrappedFunction
+//                )
+//       );
+//       return (
+//         !hasAsyncStateUpdates &&  // 적절히 처리된 비동기 상태 업데이트는 제외
+//         analysis.renderAnalysis.hasStateUpdates &&
+//         analysis.renderAnalysis.estimatedRenderCount > 5
+//       );
+//     },
+//     suggestion: (analysis: ComponentAnalysis): string => {
+//       return `
+// Component "${analysis.name}" might have unnecessary state updates:
+// - High render count: ${analysis.renderAnalysis.estimatedRenderCount}
+// - Has state updates inside effects or callbacks
 
-Consider:
-1. Using state updater function to avoid stale closures
-2. Batching multiple state updates
-3. Moving state updates to useEffect when appropriate
+// Consider:
+// 1. Using state updater function to avoid stale closures
+// 2. Batching multiple state updates
+// 3. Moving state updates to useEffect when appropriate
 
-Example:
-\`\`\`typescript
-// Before
-const handleClick = () => {
-  setCount(count + 1);
-  setTotal(total + count);
-};
+// Example:
+// \`\`\`typescript
+// // Before
+// const handleClick = () => {
+//   setCount(count + 1);
+//   setTotal(total + count);
+// };
 
-// After
-const handleClick = () => {
-  setCount(prev => {
-    const newCount = prev + 1;
-    setTotal(total => total + newCount);
-    return newCount;
-  });
-};
-\`\`\`
-      `;
-    },
-  },
+// // After
+// const handleClick = () => {
+//   setCount(prev => {
+//     const newCount = prev + 1;
+//     setTotal(total => total + newCount);
+//     return newCount;
+//   });
+// };
+// \`\`\`
+//       `;
+//     },
+//   },
 ];

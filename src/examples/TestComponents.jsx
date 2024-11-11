@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 
+
+
 // 1. 비용이 큰 계산이 있는 컴포넌트
 export function ExpensiveListComponent() {
   const [filter, setFilter] = useState('');
@@ -9,12 +11,13 @@ export function ExpensiveListComponent() {
     name: `Item ${i}`,
   }))
 
+
   return (
     <div>
       <input
         type='text'
         value={filter}
-        onChange={(e) => setFilter(e.target.value)}
+        onChange={(e) => setFilter(e.target.value) }
         placeholder='Filter items...'
       />
       <ul>
@@ -27,21 +30,19 @@ export function ExpensiveListComponent() {
 // 2. 이벤트 핸들러가 많은 컴포넌트
 export function EventHandlerComponent({
   onSubmit,
-}: {
-  onSubmit: (data: any) => void;
-}) {
+}){
   const [formData, setFormData] = useState({ name: '', email: '' });
 
-  const handleSubmit = useCallback((e: React.FormEvent) => {
+  const handleSubmit = useCallback((e) => {
     e.preventDefault();
     onSubmit(formData);
   },[]);
   
-  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNameChange = useCallback((e) => {
     setFormData((prev) => ({ ...prev, name: e.target.value }));
   },[]);
 
-  const handleEmailChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleEmailChange = useCallback((e) => {
     setFormData((prev) => ({ ...prev, email: e.target.value }));
   },[]);
 
@@ -68,9 +69,9 @@ export function EventHandlerComponent({
 
 // 3. 복잡한 Hook 사용 패턴을 가진 컴포넌트
 export function ComplexHookComponent() {
-  const [data, setData] = useState<string[]>([]);
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -80,7 +81,7 @@ export function ComplexHookComponent() {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         setData(['item1', 'item2', 'item3']);
       } catch (err) {
-        setError(err as Error);
+        setError(err);
       } finally {
         setLoading(false);
       }
@@ -95,7 +96,7 @@ export function ComplexHookComponent() {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       setData(['new1', 'new2', 'new3']);
     } catch (err) {
-      setError(err as Error);
+      setError(err);
     } finally {
       setLoading(false);
     }
