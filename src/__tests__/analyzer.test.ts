@@ -1,9 +1,9 @@
-import { parse } from "@babel/parser";
-import traverse from "@babel/traverse";
-import { analyzeComponent } from "../analyzer/componentAnalyzer";
-import { AnalyzerConfig } from "../types";
+import { parse } from '@babel/parser';
+import traverse from '@babel/traverse';
+import { analyzeComponent } from '../analyzer/componentAnalyzer';
+import { AnalyzerConfig } from '../types';
 
-describe("Component Analyzer", () => {
+describe('Component Analyzer', () => {
   const defaultConfig: AnalyzerConfig = {
     memoThreshold: {
       propsCount: 2,
@@ -14,11 +14,9 @@ describe("Component Analyzer", () => {
       arraySize: 100,
       computationWeight: 0.7,
     },
-    ignorePatterns: [],
-    customRules: [],
   };
 
-  test("should analyze a simple component with expensive calculation", () => {
+  test('should analyze a simple component with expensive calculation', () => {
     const code = `
       function ExpensiveComponent() {
         const result = new Array(1000).fill(0).map((_, i) => i * 2);
@@ -30,21 +28,21 @@ describe("Component Analyzer", () => {
     `;
 
     const ast = parse(code, {
-      sourceType: "module",
-      plugins: ["jsx", "typescript"],
+      sourceType: 'module',
+      plugins: ['jsx', 'typescript'],
     });
 
     traverse(ast, {
       FunctionDeclaration(path) {
-        const analysis = analyzeComponent(path, "test.tsx", defaultConfig);
+        const analysis = analyzeComponent(path, 'test.tsx', defaultConfig);
 
-        expect(analysis.name).toBe("ExpensiveComponent");
+        expect(analysis.name).toBe('ExpensiveComponent');
         expect(analysis.renderAnalysis.hasExpensiveOperations).toBe(true);
       },
     });
   });
 
-  test("should analyze a component with event handlers", () => {
+  test('should analyze a component with event handlers', () => {
     const code = `
       function EventComponent() {
         const handleClick = () => {
@@ -60,22 +58,22 @@ describe("Component Analyzer", () => {
     `;
 
     const ast = parse(code, {
-      sourceType: "module",
-      plugins: ["jsx", "typescript"],
+      sourceType: 'module',
+      plugins: ['jsx', 'typescript'],
     });
 
     traverse(ast, {
       FunctionDeclaration(path) {
-        const analysis = analyzeComponent(path, "test.tsx", defaultConfig);
+        const analysis = analyzeComponent(path, 'test.tsx', defaultConfig);
 
-        expect(analysis.name).toBe("EventComponent");
+        expect(analysis.name).toBe('EventComponent');
         expect(analysis.renderAnalysis.hasEventHandlers).toBe(true);
         expect(analysis.renderAnalysis.eventHandlers.length).toBe(1);
       },
     });
   });
-  describe("Advanced Component Analysis", () => {
-    test("should analyze nested components with prop passing", () => {
+  describe('Advanced Component Analysis', () => {
+    test('should analyze nested components with prop passing', () => {
       const code = `
         function ParentComponent() {
           const handleClick = () => {
@@ -97,15 +95,15 @@ describe("Component Analyzer", () => {
       `;
 
       const ast = parse(code, {
-        sourceType: "module",
-        plugins: ["jsx", "typescript"],
+        sourceType: 'module',
+        plugins: ['jsx', 'typescript'],
       });
 
       traverse(ast, {
         FunctionDeclaration(path) {
-          const analysis = analyzeComponent(path, "test.tsx", defaultConfig);
+          const analysis = analyzeComponent(path, 'test.tsx', defaultConfig);
 
-          expect(analysis.name).toBe("ParentComponent");
+          expect(analysis.name).toBe('ParentComponent');
           expect(analysis.renderAnalysis.hasChildComponents).toBe(true);
           expect(analysis.renderAnalysis.hasExpensiveOperations).toBe(true);
           expect(analysis.renderAnalysis.functionPropPassing).toBe(true);
@@ -113,7 +111,7 @@ describe("Component Analyzer", () => {
       });
     });
 
-    test("should analyze components with hooks", () => {
+    test('should analyze components with hooks', () => {
       const code = `
         function HookComponent() {
           const [count, setCount] = useState(0);
@@ -145,14 +143,14 @@ describe("Component Analyzer", () => {
       `;
 
       const ast = parse(code, {
-        sourceType: "module",
-        plugins: ["jsx", "typescript"],
+        sourceType: 'module',
+        plugins: ['jsx', 'typescript'],
       });
 
       traverse(ast, {
         FunctionDeclaration(path) {
-          if (path.node.id?.name === "HookComponent") {
-            const analysis = analyzeComponent(path, "test.tsx", defaultConfig);
+          if (path.node.id?.name === 'HookComponent') {
+            const analysis = analyzeComponent(path, 'test.tsx', defaultConfig);
 
             expect(analysis.hooks.length).toBe(4); // useState 2개, useEffect 2개
             expect(analysis.renderAnalysis.hasStateUpdates).toBe(true); // setState 호출 확인

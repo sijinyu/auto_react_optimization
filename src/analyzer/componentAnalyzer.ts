@@ -1,19 +1,19 @@
-import { NodePath } from "@babel/traverse";
-import * as t from "@babel/types";
-import { AnalyzerConfig, ComponentAnalysis } from "../types";
-import { getComponentName } from "../utils";
-import { analyzeProps } from "../utils/analyzerUtils";
-import { isHook } from "../utils/astUtils";
-import { analyzeHooks } from "./hooks";
-import { calculateComplexity } from "./metrics";
-import { analyzeRenderingBehavior } from "./renderAnalysis";
+import { NodePath } from '@babel/traverse';
+import * as t from '@babel/types';
+import { AnalyzerConfig, ComponentAnalysis } from '../types';
+import { getComponentName } from '../utils';
+import { analyzeProps } from '../utils/analyzerUtils';
+import { isHook } from '../utils/astUtils';
+import { analyzeHooks } from './hooks';
+import { calculateComplexity } from './metrics';
+import { analyzeRenderingBehavior } from './renderAnalysis';
 
 export function analyzeComponent(
   path: NodePath,
   filePath: string,
   config: AnalyzerConfig
 ): ComponentAnalysis {
-    // React 컴포넌트인지 확인
+  // React 컴포넌트인지 확인
   const name = getComponentName(path);
 
   if (!name) {
@@ -28,7 +28,7 @@ export function analyzeComponent(
     complexity: calculateComplexity(path),
     renderAnalysis: analyzeRenderingBehavior(path, config),
     dependencies: analyzeDependencies(path),
-    suggestions: [], // 최적화 엔진에서 나중에 채워짐
+    expensiveNodes: [], // 연산이 비싼 특정 노드를 저장하는 배열 추가
   };
   validateAnalysis(analysis);
   return analysis;
@@ -40,13 +40,13 @@ function analyzeDependencies(path: NodePath): string[] {
   path.traverse({
     ImportDeclaration(importPath: NodePath<t.ImportDeclaration>) {
       const source = importPath.node.source.value;
-      if (!source.startsWith(".") && !source.startsWith("/")) {
+      if (!source.startsWith('.') && !source.startsWith('/')) {
         dependencies.add(source);
       }
     },
     CallExpression(callPath: NodePath<t.CallExpression>) {
       if (isHook(callPath)) {
-        dependencies.add("react");
+        dependencies.add('react');
       }
     },
   });
@@ -56,12 +56,12 @@ function analyzeDependencies(path: NodePath): string[] {
 
 function validateAnalysis(analysis: ComponentAnalysis): void {
   if (!analysis.name) {
-    throw new Error("Component analysis must have a name");
+    throw new Error('Component analysis must have a name');
   }
   if (!analysis.props) {
-    throw new Error("Component analysis must include props analysis");
+    throw new Error('Component analysis must include props analysis');
   }
   if (!analysis.hooks) {
-    throw new Error("Component analysis must include hooks analysis");
+    throw new Error('Component analysis must include hooks analysis');
   }
 }

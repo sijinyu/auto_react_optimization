@@ -7,12 +7,7 @@ import { analyzeComponent } from '../analyzer/componentAnalyzer';
 import { defaultRules } from '../optimizer/rules';
 import { AnalyzerConfig, ComponentAnalysis } from '../types';
 
-type MessageIds =
-  | 'useMemoSuggestion'
-  | 'useCallbackSuggestion'
-  | 'memoComponentSuggestion'
-  | 'optimizeDependencySuggestion'
-  | 'preventUpdatesSuggestion';
+type MessageIds = 'useMemoSuggestion' | 'useCallbackSuggestion';
 
 interface RuleOptions {
   memoThreshold: {
@@ -43,9 +38,6 @@ export const reactHooksOptimization = createRule<[RuleOptions], MessageIds>({
     messages: {
       useMemoSuggestion: '{{ description }}',
       useCallbackSuggestion: '{{ description }}',
-      memoComponentSuggestion: '{{ description }}',
-      optimizeDependencySuggestion: '{{ description }}',
-      preventUpdatesSuggestion: '{{ description }}',
     },
     schema: [
       {
@@ -90,15 +82,15 @@ export const reactHooksOptimization = createRule<[RuleOptions], MessageIds>({
   ],
 
   create(context, [options]) {
+    console.log('Rule is running with options:', options); // 로그 추가
+
     const analyzerConfig: AnalyzerConfig = {
       memoThreshold: options.memoThreshold,
       performanceThreshold: options.performanceThreshold,
-      ignorePatterns: [],
-      customRules: [],
     };
 
     function convertToNodePath(node: TSESTree.Node): NodePath<t.Node> {
-      const code = context.getSourceCode().getText(node);
+      const code = context.sourceCode.getText(node);
       const ast = parse(code, {
         sourceType: 'module',
         plugins: ['jsx', 'typescript'],
@@ -131,7 +123,7 @@ export const reactHooksOptimization = createRule<[RuleOptions], MessageIds>({
         case 'useMemoForExpensiveCalculations':
           return createUseMemoFix(fixer, node, analysis, sourceCode);
         case 'useCallbackForEventHandlers':
-          return createUseCallbackFix(fixer, node,sourceCode)
+          return createUseCallbackFix(fixer, node, sourceCode);
         default:
           return null;
       }
@@ -172,6 +164,8 @@ export const reactHooksOptimization = createRule<[RuleOptions], MessageIds>({
           | TSESTree.FunctionExpression
           | TSESTree.ArrowFunctionExpression
       ) {
+        console.log('Found a function:', node.type); // 로그 추가
+
         try {
           const nodePath = convertToNodePath(node);
           const analysis = analyzeComponent(
@@ -181,31 +175,36 @@ export const reactHooksOptimization = createRule<[RuleOptions], MessageIds>({
           );
 
           defaultRules.forEach((rule) => {
+            console.log('Testing rule:', rule.name); // 로그 추가
+
             if (rule.test(analysis)) {
+              console.log('Rule test passed:', rule.name); // 로그 추가
+
               const messageId = getRuleMessageId(rule.name);
               if (messageId) {
+                console.log('Reporting issue with messageId:', messageId); // 로그 추가
+                console.log('Report suggestion', rule.suggestion(analysis));
+
                 context.report({
                   node,
                   messageId,
                   data: {
                     description: rule.suggestion(analysis),
                   },
-                  fix(fixer) {
-                    return createFix(
-                      fixer,
-                      node,
-                      rule.name,
-                      analysis,
-                      context.getSourceCode()
-                    );
-                  },
+                  // fix(fixer) {
+                  //   return createFix(
+                  //     fixer,
+                  //     node,
+                  //     rule.name,
+                  //     analysis,
+                  //     context.sourceCode
+                  //   );
+                  // },
                 });
               }
             }
           });
-        } catch (error) {
-          // Silent fail for non-React components
-        }
+        } catch (error) {}
       },
     };
   },
@@ -215,8 +214,6 @@ function getRuleMessageId(ruleName: string): MessageIds | null {
   const messageIds: Record<string, MessageIds> = {
     useMemoForExpensiveCalculations: 'useMemoSuggestion',
     useCallbackForEventHandlers: 'useCallbackSuggestion',
-    optimizeDependencyArrays: 'optimizeDependencySuggestion',
-    preventUnnecessaryUpdates: 'preventUpdatesSuggestion',
   };
   return messageIds[ruleName] || null;
 }

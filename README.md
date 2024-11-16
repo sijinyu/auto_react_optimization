@@ -1,72 +1,128 @@
 # 🚀 eslint-plugin-react-hooks-optimization 🔧
 
-`eslint-plugin-react-hooks-optimization` is an ESLint plugin that recommends using `useMemo` and `useCallback` to optimize React projects and reduce unnecessary re-renders. This plugin detects performance issues in the codebase and provides specific recommendations and autofixes to help developers achieve optimal performance.
+`eslint-plugin-react-hooks-optimization` is an ESLint plugin that recommends using `useMemo` and `useCallback` to optimize React projects and reduce unnecessary re-renders. This plugin detects performance issues in the codebase and provides specific recommendations and to help developers achieve optimal performance.
 
 ## ✨ Key Features
 
-- 🧠 **Recommend \*\*\*\*\*\***`useMemo`\*\*: Suggests using `useMemo` for expensive calculations that are repeated.
-- 🖇️ **Recommend \*\*\*\*\*\***`useCallback`\*\*: Suggests using `useCallback` for event handlers passed to child components to prevent them from being re-created on every render.
-- 🛠️ **Dependency Array Optimization**: Warns if necessary values are missing or unnecessary values are included in the dependency arrays of `useMemo` and `useCallback`.
-- ⚠️ **Warning Levels**: Sets warning levels based on the importance of the suggestion, such as "essential" and "consideration" to help developers prioritize actions.
+- 🧠 **useMemo Optimization**: Detects expensive calculations and suggests memoization
+- 🖇️ **useCallback Optimization**: Identifies event handlers that should be memoized
 
 ## 📦 Installation
 
-### 🛠️ Setting Up as an ESLint Plugin
-
-You can install `eslint-plugin-react-hooks-optimization` to use in your project.
-
 ```bash
 npm install eslint-plugin-react-hooks-optimization --save-dev
-```
-
-Or, if you're using Yarn:
-
-```bash
+# or
 yarn add eslint-plugin-react-hooks-optimization --dev
 ```
 
-Add the plugin to your ESLint configuration file. Here is an example of how to configure `.eslintrc.json`:
+## Configuration
+
+Add to your ESLint configuration file (.eslintrc.json):
 
 ```json
 {
   "plugins": ["react-hooks-optimization"],
   "rules": {
-   "react-hooks-optimization/prefer-optimization": ["warn"],
+    "react-hooks-optimization/prefer-optimization": [
+      "warn",
+      {
+        "memoThreshold": {
+          "propsCount": 2, // Minimum props count to suggest memoization
+          "renderCount": 3 // Re-render count threshold
+        },
+        "performanceThreshold": {
+          "complexity": 5, // Code complexity threshold
+          "arraySize": 100, // Array size threshold
+          "computationWeight": 0.7 // Computation cost weight
+        }
+      }
+    ]
   }
 }
 ```
 
-### 📥 Installation
+## 🎯 Optimization Criteria
 
-To use it as a CLI, install the package globally:
+useMemo Suggestions
+The plugin suggests useMemo when it detects:
 
-```bash
-npm install -g eslint-plugin-react-hooks-optimization
+Complex Calculations
+
+Nested loops (exponential complexity)
+High cyclomatic complexity (> 5)
+Multiple mathematical operations
+
+Large Array Operations
+
+Arrays with more than 100 elements
+Chained array methods (.map, .filter, .reduce)
+Complex array transformations
+
+```jsx
+// Will suggest useMemo:
+const processedData = data.map((item) => {
+  return otherData.filter((other) => {
+    return complex_calculation(item, other);
+  });
+});
+
+const largeArray = new Array(1000).fill(0).map(complex_transformation);
 ```
 
-🔍 **Option Descriptions**:
+useCallback Suggestions
+The plugin suggests useCallback for functions that:
 
-- 📂 `--path`: The directory path where the React components to be analyzed are located.
-- ⚙️ `--config`: The configuration file to be used for optimization analysis.
+Are Passed as Props
 
-## 📋 Rule Descriptions
+Event handlers passed to child components
+Callback functions used in effects
 
-### 🔄 `use-memo`
+Contain State Updates
 
-Detects repeated expensive calculations inside components and recommends using `useMemo` to memoize them.
+Functions that call setState
+Functions that trigger effects
 
-- **Warning Conditions**: Repeated large array operations, complex calculations, etc.
+```jsx
+// Will suggest useCallback:
+const handleUpdate = () => {
+  setCount((prev) => prev + 1);
+  onDataChange(newValue); // prop function
+};
 
-### 🖇️ `use-callback`
+<ChildComponent onUpdate={handleUpdate} />;
+```
 
-Recommends using `useCallback` to prevent event handlers passed to child components from being re-created on each render.
+## 📋 Example Use Cases
 
-- **Warning Conditions**: Event handlers passed to child components or involving complex operations.
+Complex Data Processing
+
+```jsx
+// Before
+function DataProcessor({ data }) {
+  const processed = data
+    .filter(complexFilter)
+    .map(complexTransform)
+    .reduce(complexReduce);
+
+  return <Display data={processed} />;
+}
+
+// After (with optimization)
+function DataProcessor({ data }) {
+  const processed = useMemo(
+    () =>
+      data.filter(complexFilter).map(complexTransform).reduce(complexReduce),
+    [data]
+  );
+
+  return <Display data={processed} />;
+}
+```
 
 ## 📜 License
 
-This project is licensed under the MIT License.
+MIT License
 
 ## 👨‍💻 Author
 
-This plugin was created by Sijin, who is passionate about frontend performance optimization. Hope this helps you write an optimized React codebase.
+Created by Sijin

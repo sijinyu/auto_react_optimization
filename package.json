@@ -1,78 +1,68 @@
 {
-	"name": "eslint-plugin-react-hooks-optimization",
-	"version": "1.0.0",
-	"description": "An ESLint plugin for React optimization suggestions like useMemo and useCallback.",
-	"keywords": [
-		"eslint",
-		"react",
-		"optimization",
-		"useMemo",
-		"useCallback"
-	],
-	"files": [
-		"dist"
-	],
-	"main": "dist/src/index.js",
-	"bin": {
-		"react-hook-optimizer": "dist/cli/index.js"
-	},
-	"scripts": {
-		"build": "tsc",
-		"start": "ts-node src/cli/index.ts",
-		"test": "jest",
-		"test:watch": "jest --watch",
-		"analyze": "ts-node src/cli/index.ts analyze",
-		"lint": "eslint src/**/*.ts",
-		"format": "prettier --write src/**/*.ts"
-	},
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/sijinyu/auto_react_optimization"
-	},
-	"author": "sijinyu <sijinyudev@gmail.com>",
-	"license": "MIT",
-	"bugs": {
-		"url": "https://github.com/sijinyu/auto_react_optimization/issues"
-	},
-	"homepage": "https://github.com/sijinyu/auto_react_optimization#readme",
-	"exports": {
+  "name": "eslint-plugin-react-hooks-optimization",
+  "version": "1.0.0",
+  "description": "An ESLint plugin for React optimization suggestions like useMemo and useCallback.",
+  "keywords": [
+    "eslint",
+    "react",
+    "optimization",
+    "useMemo",
+    "useCallback"
+  ],
+  "files": [
+    "dist"
+  ],
+  "main": "dist/src/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write src/**/*.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sijinyu/auto_react_optimization"
+  },
+  "author": "sijinyu <sijinyudev@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/sijinyu/auto_react_optimization/issues"
+  },
+  "homepage": "https://github.com/sijinyu/auto_react_optimization#readme",
+  "exports": {
     ".": "./dist/src/index.js",
     "./package.json": "./package.json"
   },
-	"peerDependencies": {
-		"eslint": ">=7.0.0"
-	},
-	
-	"dependencies": {
-		"commander": "^9.4.1",
-		"glob": "^11.0.0"
-	},
-	"devDependencies": {
-		"@babel/cli": "^7.25.6",
-		"@babel/core": "^7.25.2",
-		"@babel/generator": "^7.25.6",
-		"@babel/parser": "^7.26.2",
-		"@babel/preset-env": "^7.25.4",
-		"@babel/preset-react": "^7.24.7",
-		"@babel/preset-typescript": "^7.24.7",
-		"@babel/template": "^7.25.9",
-		"@babel/traverse": "^7.25.9",
-		"@babel/types": "^7.26.0",
-		"@types/babel__traverse": "^7.20.6",
-		"@types/glob": "^8.1.0",
-		"@types/jest": "^29.5.2",
-		"@types/node": "^22.5.5",
-		"@types/react": "^18.3.5",
-		"@typescript-eslint/eslint-plugin": "^5.59.9",
-		"@typescript-eslint/parser": "^5.62.0",
-		"@typescript-eslint/types": "^8.12.2",
-		"@typescript-eslint/utils": "^8.12.2",
-		"eslint": "^8.42.0",
-		"jest": "^29.5.0",
-		"prettier": "^2.8.8",
-		"react": "^18.3.1",
-		"ts-jest": "^29.1.0",
-		"ts-node": "^10.9.2",
-		"typescript": "^5.6.2"
-	}
+  "peerDependencies": {
+    "eslint": ">=7.0.0"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@babel/cli": "^7.25.6",
+    "@babel/core": "^7.25.2",
+    "@babel/generator": "^7.25.6",
+    "@babel/parser": "^7.26.2",
+    "@babel/preset-env": "^7.25.4",
+    "@babel/preset-react": "^7.24.7",
+    "@babel/preset-typescript": "^7.24.7",
+    "@babel/template": "^7.25.9",
+    "@babel/traverse": "^7.25.9",
+    "@babel/types": "^7.26.0",
+    "@types/babel__traverse": "^7.20.6",
+    "@types/jest": "^29.5.2",
+    "@types/node": "^22.5.5",
+    "@types/react": "^18.3.5",
+    "@typescript-eslint/eslint-plugin": "^5.59.9",
+    "@typescript-eslint/parser": "^5.62.0",
+    "@typescript-eslint/types": "^8.12.2",
+    "@typescript-eslint/utils": "^8.12.2",
+    "eslint": "^8.42.0",
+    "jest": "^29.5.0",
+    "prettier": "^2.8.8",
+    "react": "^18.3.1",
+    "ts-jest": "^29.1.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.2"
+  }
 }

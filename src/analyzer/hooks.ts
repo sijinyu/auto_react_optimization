@@ -1,12 +1,11 @@
-import { NodePath } from "@babel/traverse";
-import * as t from "@babel/types";
-import { HookInfo, HookType } from "../types";
-import { getHookDependencies, HOOK_TYPES, isHook } from "../utils/astUtils";
+import { NodePath } from '@babel/traverse';
+import * as t from '@babel/types';
+import { HookInfo, HookType } from '../types';
+import { getHookDependencies, HOOK_TYPES, isHook } from '../utils/astUtils';
 
 export function analyzeHooks(path: NodePath): HookInfo[] {
   const hooks: Set<HookInfo> = new Set();
   const analyzedHooks = new Set<string>();
-
 
   path.traverse({
     CallExpression(callPath) {
@@ -22,7 +21,9 @@ export function analyzeHooks(path: NodePath): HookInfo[] {
       // useCallback인 경우 감싸고 있는 함수 이름 찾기
       let wrappedFunction;
       if (hookName === 'useCallback') {
-        const parent = callPath.findParent((p)=> t.isVariableDeclarator(p.node))
+        const parent = callPath.findParent((p) =>
+          t.isVariableDeclarator(p.node)
+        );
         if (parent?.isVariableDeclarator() && t.isIdentifier(parent.node.id)) {
           wrappedFunction = parent.node.id.name;
         }
@@ -33,9 +34,9 @@ export function analyzeHooks(path: NodePath): HookInfo[] {
         type: determineHookType(hookName),
         dependencies: getHookDependencies(callPath),
         complexity: calculateHookComplexity(callPath),
-        wrappedFunction
+        wrappedFunction,
       });
-    }
+    },
   });
 
   return Array.from(hooks);
@@ -53,21 +54,21 @@ function generateHookSignature(path: NodePath<t.CallExpression>): string {
 function determineHookType(hookName: string): HookType {
   switch (hookName) {
     case HOOK_TYPES.STATE:
-      return "useState";
+      return 'useState';
     case HOOK_TYPES.EFFECT:
-      return "useEffect";
+      return 'useEffect';
     case HOOK_TYPES.MEMO:
-      return "useMemo";
+      return 'useMemo';
     case HOOK_TYPES.CALLBACK:
-      return "useCallback";
+      return 'useCallback';
     case HOOK_TYPES.REF:
-      return "useRef";
+      return 'useRef';
     case HOOK_TYPES.CONTEXT:
-      return "useContext";
+      return 'useContext';
     case HOOK_TYPES.REDUCER:
-      return "useReducer";
+      return 'useReducer';
     default:
-      return "custom";
+      return 'custom';
   }
 }
 
@@ -81,7 +82,7 @@ function calculateHookComplexity(path: NodePath<t.CallExpression>): number {
   }
 
   // 콜백 함수의 복잡도 분석
-  const callbackPath = path.get("arguments.0") as NodePath<t.Function>;
+  const callbackPath = path.get('arguments.0') as NodePath<t.Function>;
 
   if (callbackPath) {
     callbackPath.traverse({
@@ -90,7 +91,7 @@ function calculateHookComplexity(path: NodePath<t.CallExpression>): number {
         complexity++;
       },
       // 반복문
-      "ForStatement|WhileStatement|DoWhileStatement"() {
+      'ForStatement|WhileStatement|DoWhileStatement'() {
         complexity += 2;
       },
       // 삼항 연산자
@@ -129,7 +130,7 @@ export function isStateUpdate(
   // MemberExpression인 경우 (예: this.setState)
   if (path.isMemberExpression()) {
     const property = path.node.property;
-    return t.isIdentifier(property) && property.name === "setState";
+    return t.isIdentifier(property) && property.name === 'setState';
   }
 
   // CallExpression인 경우 (예: setCount(1))
@@ -167,7 +168,7 @@ export function validateHookRules(path: NodePath): string[] {
   let hookCallOrder: string[] = [];
 
   path.traverse({
-    "ForStatement|WhileStatement|DoWhileStatement"(path) {
+    'ForStatement|WhileStatement|DoWhileStatement'(path) {
       isInsideLoop = true;
       path.traverse({
         CallExpression(callPath) {
@@ -208,52 +209,15 @@ export function validateHookRules(path: NodePath): string[] {
       if (!isInsideLoop && !isInsideCondition) {
         hookCallOrder.push(hookName);
       }
-
-      // useEffect 의존성 배열 체크
-      if (hookName === HOOK_TYPES.EFFECT) {
-        validateEffectDependencies(callPath, violations);
-      }
     },
   });
 
   // Hook 순서 일관성 체크
   if (!validateHookCallOrder(hookCallOrder)) {
-    violations.push("Hooks are called in inconsistent order");
+    violations.push('Hooks are called in inconsistent order');
   }
 
   return violations;
-}
-
-function validateEffectDependencies(
-  path: NodePath<t.CallExpression>,
-  violations: string[]
-): void {
-  const deps = getHookDependencies(path);
-  const callback = path.node.arguments[0];
-
-  if (!t.isFunction(callback)) return;
-
-  const callbackPath = path.get("arguments.0") as NodePath<t.Function>;
-
-  if (callbackPath) {
-    // 콜백 내에서 사용되는 외부 변수 찾기
-    const usedVariables = new Set<string>();
-    callbackPath.traverse({
-      Identifier(idPath: NodePath<t.Identifier>) {
-        const name = idPath.node.name;
-        // props나 state 같은 외부 변수만 체크
-        if (idPath.scope.hasBinding(name)) return;
-        usedVariables.add(name);
-      },
-    });
-
-    // 빠진 의존성 찾기
-    usedVariables.forEach((variable) => {
-      if (!deps.includes(variable)) {
-        violations.push(`Effect is missing dependency: ${variable}`);
-      }
-    });
-  }
 }
 
 function validateHookCallOrder(hookOrder: string[]): boolean {

@@ -1,14 +1,7 @@
-import { NodePath } from "@babel/traverse";
-import * as t from "@babel/types";
-import {
-  AnalyzerConfig,
-  ChildComponent,
-  EventHandler,
-  RenderAnalysis,
-} from "../types";
-import { HOOK_TYPES, isHook, isSpecificHook } from "../utils/astUtils";
-import { isStateUpdate } from "./hooks";
-
+import { NodePath } from '@babel/traverse';
+import * as t from '@babel/types';
+import { AnalyzerConfig, EventHandler, RenderAnalysis } from '../types';
+import { isHook } from '../utils/astUtils';
 
 export function analyzeRenderingBehavior(
   path: NodePath,
@@ -29,17 +22,18 @@ export function analyzeRenderingBehavior(
       ) {
         hasChildComponents = true;
 
-        openingElement.attributes.forEach(attr => {
+        openingElement.attributes.forEach((attr) => {
           if (t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name)) {
             const attrName = attr.name.name; // name 프로퍼티의 실제 문자열 값
             const value = attr.value;
-            
+
             if (t.isJSXExpressionContainer(value)) {
               const expression = value.expression;
-              if (t.isFunction(expression) || 
-                  (t.isIdentifier(expression) && 
-                   (attrName.startsWith('handle') || 
-                    attrName.startsWith('on')))) {
+              if (
+                t.isFunction(expression) ||
+                (t.isIdentifier(expression) &&
+                  (attrName.startsWith('handle') || attrName.startsWith('on')))
+              ) {
                 hasPropsPassingToChild = true;
               }
             }
@@ -50,43 +44,21 @@ export function analyzeRenderingBehavior(
   });
 
   const analysis: RenderAnalysis = {
-    estimatedRenderCount: calculateEstimatedRenderCount(path),
     hasExpensiveCalculations: checkForExpensiveCalculations(path, config),
     hasExpensiveOperations: checkForExpensiveOperations(path, config),
-    affectedByStateChanges: checkForStateChanges(path),
     eventHandlers: findEventHandlers(path),
     hasEventHandlers: false,
     hasChildComponents: hasChildComponents && hasPropsPassingToChild,
-    memoizedComponents: findMemoizedComponents(path),
     functionPropPassing: false,
     hasStateUpdates: false,
   };
 
   // 부가 정보 설정
   analysis.hasEventHandlers = analysis.eventHandlers.length > 0;
-analysis.functionPropPassing = checkForFunctionPropPassing(path);
+  analysis.functionPropPassing = checkForFunctionPropPassing(path);
   analysis.hasStateUpdates = checkForStateUpdates(path);
 
   return analysis;
-}
-
-function calculateEstimatedRenderCount(path: NodePath): number {
-  let count = 1; // 초기 렌더링
-
-  path.traverse({
-    CallExpression(callPath) {
-      const node = callPath.node;
-      if (!isHook(node)) return;
-
-      if (isSpecificHook(node, HOOK_TYPES.STATE)) {
-        count += 2; // setState 호출 가능성
-      } else if (isSpecificHook(node, HOOK_TYPES.EFFECT)) {
-        count += 1; // effect 재실행 가능성
-      }
-    },
-  });
-
-  return count;
 }
 
 function checkForExpensiveCalculations(
@@ -94,7 +66,8 @@ function checkForExpensiveCalculations(
   config: AnalyzerConfig
 ): boolean {
   let found = false;
-  const threshold = config.performanceThreshold.complexity;
+  const threshold = config.performanceThreshold.complexity; // 기본값: 5
+  // 루프의 복잡도 체크
 
   path.traverse({
     ForStatement(forPath) {
@@ -278,121 +251,25 @@ function checkForExpensiveOperations(
   function isArrayMethod(propertyNode: t.Expression): boolean {
     return (
       t.isIdentifier(propertyNode) &&
-      ['map', 'filter', 'reduce', 'forEach', 'fill'].includes(
-        propertyNode.name
-      )
+      ['map', 'filter', 'reduce', 'forEach', 'fill'].includes(propertyNode.name)
     );
   }
 }
-// function checkForExpensiveOperations(
-//   path: NodePath,
-//   config: AnalyzerConfig
-// ): boolean {
-//   let found = false;
-//   const arrayThreshold = config.performanceThreshold.arraySize;
-
-//   path.traverse({
-//     // 2. 변수 선언 체크
-//     VariableDeclarator(declaratorPath) {
-//       const init = declaratorPath.get('init');
-//       if (!init || Array.isArray(init)) return;
-
-//       const arraySize = getArraySize(init as NodePath);
-//       if (arraySize > arrayThreshold) {
-//         found = true;
-//       }
-
-//       // 배열에 대해 map, filter 등이 사용되는지 체크
-//       if (t.isCallExpression(init.node)) {
-//         const callee = init.node.callee;
-//         if (isArrayMethod(callee)) {
-//           found = true;
-//         }
-//       }
-//     },
-
-    
-//     // 함수 선언 내부의 배열 연산 체크
-//     ArrowFunctionExpression(arrowPath) {
-//       const body = arrowPath.get('body');
-//       if (!Array.isArray(body)) {
-//         const arraySize = getArraySize(body);
-//         if (arraySize > arrayThreshold) {
-//           found = true;
-//         }
-
-//         // 배열의 map, filter 등이 함수 내부에서 사용되는지 체크
-//         body.traverse({
-//           CallExpression(callPath) {
-//             const callee = callPath.get('callee');
-//             if (callee.isMemberExpression() && isArrayMethod(callee.node)) {
-//               const arraySize = getArraySize(callPath);
-//               if (arraySize > arrayThreshold) {
-//                 found = true;
-//               }
-//             }
-//           },
-//         });
-//       }
-//     },
-//   });
-
-//   return found;
-// }
-
-// function isArrayMethod(callee: t.Node): boolean {
-//   if (t.isMemberExpression(callee)) {
-//     if (
-//       t.isIdentifier(callee.property) &&
-//       ['map', 'filter', 'reduce', 'forEach'].includes(callee.property.name)
-//     ) {
-//       return true;
-//     }
-//   }
-//   return false;
-// }
-
-
-function getArraySize(path: NodePath): number {
-  if (path.isCallExpression()) {
-    const callee = path.node.callee;
-
-    // new Array() 패턴 체크
-    if (t.isNewExpression(callee)) {
-      if (t.isIdentifier(callee.callee) && callee.callee.name === 'Array') {
-        const sizeArg = callee.arguments[0];
-        if (t.isNumericLiteral(sizeArg)) {
-          return sizeArg.value;
-        }
-      }
-    }
-
-    // map, filter 등의 메서드 체인 체크
-    if (t.isMemberExpression(callee)) {
-      const object = callee.object;
-      if (t.isCallExpression(object)) {
-        return getArraySize(path.get('callee.object') as NodePath);
-      }
-    }
-  }
-
-  return 0;
-}
-
 
 function findEventHandlers(path: NodePath): EventHandler[] {
   const handlers: EventHandler[] = [];
-  
+
   // 모든 변수 선언을 순회
   path.traverse({
     VariableDeclarator(declaratorPath) {
       // 1. 핸들러 함수 식별
-      
+
       const id = declaratorPath.get('id');
       if (!id.isIdentifier()) return;
-      
+
       const handlerName = id.node.name;
-      if (!handlerName.startsWith('handle') && !handlerName.startsWith('on')) return;
+      if (!handlerName.startsWith('handle') && !handlerName.startsWith('on'))
+        return;
 
       // 2. 함수 정의 확인
       const init = declaratorPath.get('init');
@@ -400,23 +277,26 @@ function findEventHandlers(path: NodePath): EventHandler[] {
 
       // 3. useCallback 확인
       const parentNode = declaratorPath.parentPath?.parentPath?.node;
-      const isCallbackWrapped = t.isCallExpression(parentNode) && 
-                              t.isIdentifier(parentNode.callee) && 
-                              parentNode.callee.name === 'useCallback';
-      
+      const isCallbackWrapped =
+        t.isCallExpression(parentNode) &&
+        t.isIdentifier(parentNode.callee) &&
+        parentNode.callee.name === 'useCallback';
+
       if (!isCallbackWrapped) {
         // 4. JSX 속성으로 전달되는지 확인
         let isPassedToJSX = false;
         path.traverse({
           JSXAttribute(jsxAttrPath) {
-            if (t.isJSXIdentifier(jsxAttrPath.node.name) &&
-                jsxAttrPath.node.value && 
-                t.isJSXExpressionContainer(jsxAttrPath.node.value) &&
-                t.isIdentifier(jsxAttrPath.node.value.expression) &&
-                jsxAttrPath.node.value.expression.name === handlerName) {
+            if (
+              t.isJSXIdentifier(jsxAttrPath.node.name) &&
+              jsxAttrPath.node.value &&
+              t.isJSXExpressionContainer(jsxAttrPath.node.value) &&
+              t.isIdentifier(jsxAttrPath.node.value.expression) &&
+              jsxAttrPath.node.value.expression.name === handlerName
+            ) {
               isPassedToJSX = true;
             }
-          }
+          },
         });
 
         // 5. 핸들러가 JSX props로 전달되면 추가
@@ -426,120 +306,30 @@ function findEventHandlers(path: NodePath): EventHandler[] {
             type: 'custom',
             usesProps: true,
             usesState: true,
-            hasCleanup: false
+            hasCleanup: false,
           });
-        }
-      }
-    }
-    
-  });
-
-  return handlers;
-}
-
-function findMemoizedComponents(path: NodePath): ChildComponent[] {
-  const components: ChildComponent[] = [];
-  const processedComponents = new Set<string>();
-
-  path.traverse({
-    CallExpression(callPath) {
-      const node = callPath.node;
-      if (!t.isMemberExpression(node.callee)) return;
-
-      const object = node.callee.object;
-      const property = node.callee.property;
-
-      if (
-        t.isIdentifier(object) &&
-        object.name === "React" &&
-        t.isIdentifier(property) &&
-        property.name === "memo"
-      ) {
-        const componentInfo = analyzeMemoizedComponent(callPath);
-        if (componentInfo && !processedComponents.has(componentInfo.name)) {
-          components.push(componentInfo);
-          processedComponents.add(componentInfo.name);
         }
       }
     },
   });
 
-  return components;
+  return handlers;
 }
+
+// 루프 복잡도 계산
 
 function calculateLoopComplexity(path: NodePath): number {
   let complexity = 1;
   let nestedLoops = 0;
 
   path.traverse({
-    "ForStatement|WhileStatement|DoWhileStatement"() {
+    'ForStatement|WhileStatement|DoWhileStatement'() {
       nestedLoops++;
     },
   });
+  // 중첩 루프의 경우 지수적으로 복잡도 증가
 
   return complexity * Math.pow(2, nestedLoops);
-}
-
-
-function estimateArraySize(path: NodePath<t.CallExpression>): number {
-  const node = path.node;
-  
-  if (t.isCallExpression(node)) {
-    // new Array(n) 생성자 체크
-    if (t.isNewExpression(node.callee) && 
-        t.isIdentifier(node.callee.callee) && 
-        node.callee.callee.name === 'Array') {
-      const args = node.callee.arguments;
-      if (args.length > 0 && t.isNumericLiteral(args[0])) {
-        return args[0].value;
-      }
-    }
-
-    // 메서드 체인에서 원본 배열 크기 찾기
-    if (t.isMemberExpression(node.callee)) {
-      const object = node.callee.object;
-      if (t.isCallExpression(object)) {
-        const size = estimateArraySize(path.get('callee.object') as NodePath<t.CallExpression>);
-        if (size > 0) return size;
-      }
-    }
-  }
-
-  return 0;
-}
- 
-function checkForStateChanges(path: NodePath): boolean {
-  let found = false;
-
-  path.traverse({
-    CallExpression(callPath: NodePath<t.CallExpression>) {
-      if (isStateUpdate(callPath)) {
-        found = true;
-      }
-    },
-  });
-
-  return found;
-}
-
-// React.memo 컴포넌트 분석
-function analyzeMemoizedComponent(
-  path: NodePath<t.CallExpression>
-): ChildComponent | null {
-  const arg = path.node.arguments[0];
-  if (
-    !t.isIdentifier(arg) &&
-    !t.isFunctionExpression(arg) &&
-    !t.isArrowFunctionExpression(arg)
-  ) {
-    return null;
-  }
-
-  return {
-    name: t.isIdentifier(arg) ? arg.name : "AnonymousMemoComponent",
-    isMemoized: true,
-    receivedFunctions: findReceivedFunctions(path),
-  };
 }
 
 // 컴포넌트가 받는 함수형 props 찾기
@@ -613,7 +403,7 @@ function checkForStateUpdates(path: NodePath): boolean {
   path.traverse({
     CallExpression(callPath) {
       const callee = callPath.node.callee;
-      if (t.isIdentifier(callee) && callee.name === "useState") {
+      if (t.isIdentifier(callee) && callee.name === 'useState') {
         const parent = callPath.parentPath;
         if (
           parent?.isVariableDeclarator() &&
@@ -640,7 +430,7 @@ function checkForStateUpdates(path: NodePath): boolean {
     MemberExpression(memberPath) {
       if (
         t.isIdentifier(memberPath.node.property) &&
-        memberPath.node.property.name === "setState"
+        memberPath.node.property.name === 'setState'
       ) {
         hasStateUpdates = true;
       }
