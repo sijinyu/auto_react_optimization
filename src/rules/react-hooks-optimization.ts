@@ -135,18 +135,15 @@ export const reactHooksOptimization = createRule<[RuleOptions], MessageIds>({
       analysis: ComponentAnalysis,
       sourceCode: TSESLint.SourceCode
     ): TSESLint.RuleFix {
-      const build = template.expression(`
-        useMemo(() => { 
-          return CALCULATION
-        }, [DEPS])
-      `);
+      const originalText = sourceCode.getText(node);
 
-      const newNode = build({
-        CALCULATION: sourceCode.getText(node),
-        DEPS: analysis.hooks.flatMap((h) => h.dependencies).join(', '),
-      });
-
-      return fixer.replaceText(node, sourceCode.getText(newNode as any));
+      // useMemo로 감싼 텍스트를 만듭니다
+      const memoizedText = `
+    useMemo(() => {
+      return ${originalText};
+    }, [${analysis.hooks.flatMap((h) => h.dependencies).join(', ')}])
+  `;
+      return fixer.replaceText(node, memoizedText);
     }
 
     function createUseCallbackFix(
@@ -191,15 +188,15 @@ export const reactHooksOptimization = createRule<[RuleOptions], MessageIds>({
                   data: {
                     description: rule.suggestion(analysis),
                   },
-                  // fix(fixer) {
-                  //   return createFix(
-                  //     fixer,
-                  //     node,
-                  //     rule.name,
-                  //     analysis,
-                  //     context.sourceCode
-                  //   );
-                  // },
+                  fix(fixer) {
+                    return createFix(
+                      fixer,
+                      node,
+                      rule.name,
+                      analysis,
+                      context.sourceCode
+                    );
+                  },
                 });
               }
             }
