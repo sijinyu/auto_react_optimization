@@ -188,15 +188,15 @@ export const reactHooksOptimization = createRule<[RuleOptions], MessageIds>({
                   data: {
                     description: rule.suggestion(analysis),
                   },
-                  fix(fixer) {
-                    return createFix(
-                      fixer,
-                      node,
-                      rule.name,
-                      analysis,
-                      context.sourceCode
-                    );
-                  },
+                  // fix(fixer) {
+                  //   return createFix(
+                  //     fixer,
+                  //     node,
+                  //     rule.name,
+                  //     analysis,
+                  //     context.sourceCode
+                  //   );
+                  // },
                 });
               }
             }
